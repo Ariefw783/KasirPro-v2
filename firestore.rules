@@ -45,6 +45,24 @@ service cloud.firestore {
         && profile(namespace, storeId).role == 'cashier';
     }
 
+    function isStockOperator(namespace, storeId) {
+      return isAdmin(namespace, storeId) || isCashier(namespace, storeId);
+    }
+
+    function validActiveStock(data) {
+      return data.keys().hasOnly([
+          'productCode', 'productName', 'quantity', 'updatedAt', 'syncUpdatedAt'
+        ])
+        && data.keys().hasAll(['productCode', 'productName', 'quantity', 'updatedAt'])
+        && data.productCode is string
+        && data.productCode.size() > 0
+        && data.productName is string
+        && data.productName.size() > 0
+        && data.quantity is int
+        && data.quantity >= 0
+        && data.updatedAt is string;
+    }
+
     function validLoginDirectory(data) {
       return data.keys().hasOnly([
           'username',
@@ -149,14 +167,11 @@ service cloud.firestore {
 
       match /StokAktif/{stockId} {
         allow read: if isActiveMember(namespace, storeId);
-        allow create, update: if isActiveMember(namespace, storeId)
-          && request.resource.data.keys().hasOnly([
-            'productCode', 'productName', 'quantity', 'updatedAt', 'syncUpdatedAt'
-          ])
-          && request.resource.data.productCode is string
-          && request.resource.data.productName is string
-          && request.resource.data.quantity is number
-          && request.resource.data.quantity >= 0;
+        allow create: if isStockOperator(namespace, storeId)
+          && validActiveStock(request.resource.data);
+        allow update: if isStockOperator(namespace, storeId)
+          && validActiveStock(request.resource.data)
+          && request.resource.data.productCode == resource.data.productCode;
         allow delete: if isAdmin(namespace, storeId);
       }
 

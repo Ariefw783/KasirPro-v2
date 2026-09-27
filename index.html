@@ -21,8 +21,10 @@
     <title>KasirPro | Login</title>
 
     <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="assets/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
-    <link rel="apple-touch-icon" href="assets/icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon-180.png">
 
     <!-- Font Awesome -->
     <link
@@ -43,10 +45,12 @@
     <section class="login-container" aria-labelledby="login-title">
       <aside class="brand-stage">
         <header class="login-header">
-          <img src="assets/logo.png" alt="Logo Apotek Doa Ibu" class="login-logo">
+          <img src="assets/kasirpro-symbol.svg" alt="" class="login-logo" aria-hidden="true">
           <div class="login-brand">
-            <h1 id="login-title">APOTEK DOA IBU</h1>
-            <p>KasirPro</p>
+            <h1 id="login-title" aria-label="KasirPro V.2">
+              <span class="brand-kasir">KASIR</span><span class="brand-pro">PRO</span><span class="brand-version">V.2</span>
+            </h1>
+            <p id="login-store-name">Apotek Doa Ibu</p>
           </div>
         </header>
       </aside>

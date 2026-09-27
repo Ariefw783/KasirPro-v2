@@ -1,4 +1,4 @@
-const CACHE_VERSION = "kasirpro-pwa-v32-production-integrity";
+const CACHE_VERSION = "kasirpro-pwa-v43-high-priority-fixes";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const STATIC_ASSETS = [
@@ -9,11 +9,21 @@ const STATIC_ASSETS = [
     "./login-theme.css",
     "./manifest.webmanifest",
     "./offline.html",
-    "./assets/logo.png",
     "./assets/login-background.svg",
+    "./assets/favicon.ico",
+    "./assets/favicon-16.png",
+    "./assets/favicon-32.png",
+    "./assets/favicon-48.png",
+    "./assets/apple-touch-icon-180.png",
+    "./assets/kasirpro-symbol.svg",
+    "./assets/kasirpro-symbol-monochrome.svg",
+    "./assets/logo-kasirpro-horizontal.svg",
+    "./assets/logo-kasirpro-horizontal-white.svg",
     "./assets/icon-192.png",
     "./assets/icon-512.png",
     "./assets/icon-maskable-512.png",
+    "./assets/shortcut-pos-192.png",
+    "./assets/shortcut-management-192.png",
     "./management/index.html",
     "./management/management.css",
     "./management/management-mobile.css",

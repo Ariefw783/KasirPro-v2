@@ -1,4 +1,5 @@
 import { signInKasirPro } from "./modules/database/auth.js";
+import { readMasterSnapshot } from "./modules/local/master-repository.js";
 
 const roleButtons = document.querySelectorAll(".role-card");
 const roleSelection = document.querySelector(".role-selection");
@@ -24,9 +25,24 @@ init();
 
 function init() {
   disableLegacyLoader();
+  updateLoginStoreName();
   checkActiveSession();
   bindEvents();
   selectRole("admin");
+}
+
+async function updateLoginStoreName() {
+  const node = document.getElementById("login-store-name");
+  if (!node) return;
+  try {
+    const master = await readMasterSnapshot();
+    const rows = master?.pengaturan_toko || master?.pengaturanToko || master?.pengaturan || [];
+    const settings = Array.isArray(rows) ? rows[0] : rows;
+    const name = String(settings?.["Nama Toko"] || "").trim().replace(/\s+v\.?\s*2(?:\.0)?$/i, "").trim();
+    if (name) node.textContent = name;
+  } catch (error) {
+    console.warn("Nama toko lokal belum dapat dibaca:", error);
+  }
 }
 
 function disableLegacyLoader() {
