@@ -9,6 +9,7 @@ import './invoice-import-v2-at08.js';
 import './invoice-auto-flow-at08.js';
 import './ui-cleanup-at08.js';
 import './database-maintenance-at10-v2.js';
+import './maintenance-safety-v4.js';
 
 /* AT-13D: renderer-compatible mapping without a document.body MutationObserver. */
 import './management-display-at12.js';

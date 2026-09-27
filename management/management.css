@@ -1,5 +1,31 @@
 @import url("./management-base.css");
 
+.stock-filter-toolbar {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.stock-filter-toolbar .preview-search {
+    flex: 1 1 220px;
+}
+
+.stock-filter-toolbar select {
+    flex: 1 1 150px;
+    max-width: 230px;
+}
+
+.stock-filter-toolbar #stock-reset-filter[hidden] {
+    display: none;
+}
+
+@media (max-width: 680px) {
+    .stock-filter-toolbar select,
+    .stock-filter-toolbar #stock-reset-filter:not([hidden]) {
+        width: 100%;
+        max-width: none;
+    }
+}
+
 /* =========================================================
    ACCEPTANCE — DASHBOARD READABILITY
    Fokus pada hierarchy teks tanpa menambah visual yang ramai.

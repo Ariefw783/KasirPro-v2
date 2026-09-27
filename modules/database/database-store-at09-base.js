@@ -502,6 +502,12 @@ export function readCurrentStock(code) {
     return movementStock(code);
 }
 
+export async function reloadMasterCache() {
+    await refreshMasterCacheFromIndexedDb();
+    rebuildStockIndex();
+    return masterWithOperationalStock(masterCache);
+}
+
 function masterWithOperationalStock(master) {
     const revision = `${masterRevision}:${stockRevision}`;
     if (materializedMasterCache && materializedRevision === revision) return clone(materializedMasterCache);
@@ -651,7 +657,8 @@ export async function writeStockTransaction(entries) {
     const sourceMovements = sourceEntries.find(entry => entry.key === STORE_KEYS.movements)?.value || [];
     if (!sourceMovements.length) return writeOperationalDelta(entries);
 
-    operationalWriteQueue = operationalWriteQueue.then(async () => {
+    let remoteCommitted = false;
+    operationalWriteQueue = operationalWriteQueue.catch(() => {}).then(async () => {
         let committedEntries = null;
         let committedStocks = null;
         let committedChanges = null;
@@ -693,8 +700,9 @@ export async function writeStockTransaction(entries) {
                     ? workingStock.get(code)
                     : (snapshot?.exists() ? num(snapshot.data()?.quantity) : num(movement?.stockBefore));
                 const isOpname = norm(movement?.type) === "opname";
-                if (isOpname && before !== num(movement?.stockBefore)) {
-                    throw new Error(`Stok ${movement.productCode} berubah sejak preview. Baca ulang Stock Opname.`);
+                const isOpening = norm(movement?.type) === "opening";
+                if ((isOpname || isOpening) && before !== num(movement?.stockBefore)) {
+                    throw new Error(`Stok ${movement.productCode} berubah dari acuan. Muat ulang data sebelum mencoba lagi.`);
                 }
                 const after = isOpname ? num(movement?.stockAfter) : before + num(movement?.delta);
                 if (!Number.isFinite(after) || after < 0) {
@@ -734,6 +742,7 @@ export async function writeStockTransaction(entries) {
             committedChanges = changes;
         });
 
+        remoteCommitted = true;
         for (const entry of committedEntries || []) {
             const current = operationalState.get(entry.key) || [];
             operationalState.set(entry.key, mergeRuntimeRecords(entry.key, current, attachDocumentIds(entry.key, entry.value)));
@@ -766,7 +775,10 @@ export async function writeStockTransaction(entries) {
         };
     });
 
-    return operationalWriteQueue;
+    return operationalWriteQueue.catch((error) => {
+        if (remoteCommitted && error && typeof error === "object") error.remoteCommitted = true;
+        throw error;
+    });
 }
 
 async function commitOperationalEntries(entries) {

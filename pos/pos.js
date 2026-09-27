@@ -9,3 +9,4 @@ import './pos-at07-core.js';
 
 /* AT-11 display-only enhancement: company supplier name in quick search results. */
 import './pos-supplier-display-at11.js';
+

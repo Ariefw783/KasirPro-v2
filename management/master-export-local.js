@@ -5,10 +5,9 @@
 import { readMasterSnapshot, readMasterVersion } from "../modules/local/master-repository.js";
 
 const STANDARD_HEADERS = Object.freeze({
-    SUPPLIER: ["Supplier","Nama Supplier","Alamat","Telepon","Email","Kontak Person","NPWP","Termin Default","Status","Catatan"],
+    SUPPLIER: ["Supplier","Alamat","Telepon","Email","Kontak Person","NPWP","Termin Default","Status","Catatan"],
     KATEGORI: ["Kode Kategori","Nama Kategori","Deskripsi","Status"],
-    PRODUK: ["Kode Produk","Nama Produk","Kategori","Satuan","Supplier","Harga Beli","Harga Jual","Stok Awal","Stok Minimum","Lokasi Rak","Batch","Tanggal Expired","Status Produk","Catatan"],
-    PENGATURAN_TOKO: ["Nama Toko","Alamat","Telepon","Email","NPWP","Logo","Footer Struk","Prefix Transaksi","Prefix Faktur","Format Nomor Transaksi","Format Nomor Faktur","Mata Uang","Zona Waktu","Pajak Default (%)","Ukuran Struk","Printer Default","Lebar Kertas","Tampilkan Logo di Struk","Tampilkan Nama Kasir di Struk","Tampilkan Pajak di Struk","Tampilkan Diskon di Struk","Status Toko","Catatan"]
+    PRODUK: ["Kode Produk","Nama Produk","Kategori","Satuan","Supplier","Harga Beli","Harga Jual","Stok Awal","Stok Minimum","Lokasi Rak","Batch","Tanggal Expired","Status Produk","Catatan"]
 });
 
 const PRIVATE_FIELDS = new Set(["_id","_localKey","_firestoreDocumentId"]);
@@ -23,24 +22,14 @@ function cleanRecords(records) {
     });
 }
 
-function orderedHeaders(records, standard) {
-    const extra = [];
-    const seen = new Set(standard);
-    records.forEach(record => {
-        Object.keys(record || {}).forEach(key => {
-            if (!PRIVATE_FIELDS.has(key) && !seen.has(key)) {
-                seen.add(key);
-                extra.push(key);
-            }
-        });
-    });
-    return [...standard, ...extra];
-}
-
-function sheetFromRecords(records, standardHeaders) {
+function sheetFromRecords(records, standardHeaders, kind = "") {
     const rows = cleanRecords(records);
-    const headers = orderedHeaders(rows, standardHeaders);
-    const matrix = [headers, ...rows.map(row => headers.map(header => row?.[header] ?? ""))];
+    const headers = standardHeaders;
+    const matrix = [headers, ...rows.map(row => headers.map(header => {
+        if (kind === "PRODUK" && header === "Stok Awal") return "";
+        if (kind === "SUPPLIER" && header === "Supplier") return row.Supplier || row["Nama Supplier"] || "";
+        return row?.[header] ?? "";
+    }))];
     const sheet = window.XLSX.utils.aoa_to_sheet(matrix);
     sheet["!cols"] = headers.map(header => ({ wch: Math.min(42, Math.max(12, String(header).length + 2)) }));
     if (matrix.length > 1) sheet["!autofilter"] = { ref: `A1:${window.XLSX.utils.encode_col(headers.length - 1)}${matrix.length}` };
@@ -59,10 +48,10 @@ function instructionSheet(version, snapshot) {
         ["ATURAN EDIT & IMPORT"],
         ["1", "Produk baru wajib hanya Nama Produk dan Supplier."],
         ["2", "Kode Produk boleh dikosongkan. KasirPro akan membuat ADD0001, ADD0002, dan seterusnya."],
-        ["3", "Untuk data lama, sel kosong berarti jangan mengubah nilai yang sudah tersimpan."],
-        ["4", "Supplier Produk harus memakai label Supplier 1 sampai Supplier 6."],
-        ["5", "Sheet PENGGUNA tidak termasuk Master Excel; pengguna dikelola melalui aplikasi."],
-        ["6", "Data stok aktual bukan source-of-truth Master statis; perubahan stok dilakukan melalui alur operasional KasirPro."],
+        ["3", "Import Master mengganti daftar Produk, Kategori, dan Supplier. Pertahankan semua baris yang masih digunakan."],
+        ["4", "Kolom Supplier berisi nama perusahaan yang sama pada sheet SUPPLIER dan PRODUK."],
+        ["5", "Pengguna dan Pengaturan Toko dikelola melalui aplikasi, bukan file Master."],
+        ["6", "Stok Awal produk lama kosong karena stok aktual tetap tersimpan. Isi hanya untuk produk baru jika diperlukan."],
         [],
         ["WORKFLOW"],
         ["Export Master Aktif → Edit Excel → Import Master → Preview/Validasi → Konfirmasi"]
@@ -91,10 +80,9 @@ export async function exportActiveMasterToExcel() {
 
     const workbook = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(workbook, instructionSheet(version, snapshot), "PETUNJUK_IMPORT");
-    window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.supplier, STANDARD_HEADERS.SUPPLIER), "SUPPLIER");
+    window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.supplier, STANDARD_HEADERS.SUPPLIER, "SUPPLIER"), "SUPPLIER");
     window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.kategori, STANDARD_HEADERS.KATEGORI), "KATEGORI");
-    window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.produk, STANDARD_HEADERS.PRODUK), "PRODUK");
-    window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.pengaturan_toko, STANDARD_HEADERS.PENGATURAN_TOKO), "PENGATURAN_TOKO");
+    window.XLSX.utils.book_append_sheet(workbook, sheetFromRecords(snapshot.produk, STANDARD_HEADERS.PRODUK, "PRODUK"), "PRODUK");
 
     const name = fileName(version);
     window.XLSX.writeFile(workbook, name, { compression: true });
@@ -104,8 +92,7 @@ export async function exportActiveMasterToExcel() {
         counts: {
             products: snapshot.produk?.length || 0,
             suppliers: snapshot.supplier?.length || 0,
-            categories: snapshot.kategori?.length || 0,
-            storeSettings: snapshot.pengaturan_toko?.length || 0
+            categories: snapshot.kategori?.length || 0
         }
     };
 }

@@ -10,10 +10,21 @@ const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
 const rupiah=v=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(num(v));
 const invoices=()=>readStore(STORE_KEYS.invoices,[])||[];
 
+function invoiceSubtotal(item){
+  return Math.max(0,num(item.qty)*num(item.buyPrice)-num(item.discount));
+}
 function invoiceTotal(inv){
-  const itemTotal=(inv.items||[]).reduce((sum,item)=>sum+Math.max(0,num(item.qty)*num(item.buyPrice)-num(item.discount)),0);
+  const itemTotal=(inv.items||[]).reduce((sum,item)=>sum+invoiceSubtotal(item),0);
   const base=Math.max(0,itemTotal-num(inv.discount));
-  return base+(base*num(inv.taxPercent)/100)+num(inv.otherCost);
+  const perItem=norm(inv.taxMethod)==='per item'||norm(inv.taxMethod)==='per_product';
+  const tax=perItem
+    ?(inv.items||[]).reduce((sum,item)=>sum+invoiceSubtotal(item)*num(item.taxPercent)/100,0)
+    :base*num(inv.taxPercent)/100;
+  return base+tax+num(inv.otherCost);
+}
+function discountLabel(method,value,amount){
+  if(method==='percentage')return `${num(value)}% (${rupiah(amount)})`;
+  return rupiah(amount);
 }
 function dateLabel(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?text(v):d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function section(){return document.querySelector('[data-view-section="purchase-invoices"]');}
@@ -67,11 +78,11 @@ function build(){
   root=document.createElement('div');root.id='kp-invoice-final';root.className='kp-invoice-final';
   root.innerHTML=`
     <div class="kp-final-head">
-      <div><h2>Faktur Pembelian</h2><p>Input faktur hanya melalui Excel. Setelah preview, faktur disimpan sebagai Draft dan stok baru berubah ketika Barang Masuk dikonfirmasi.</p></div>
-      <div class="kp-final-source"><i class="fa-solid fa-file-excel"></i> Sumber data: Excel</div>
+      <div><h2>Faktur Pembelian</h2><p>Impor, periksa, dan simpan faktur dari aplikasi Input Faktur Offline. Stok hanya berubah setelah Barang Masuk dikonfirmasi.</p></div>
+      <div class="kp-final-source"><i class="fa-solid fa-file-excel"></i> Impor Excel</div>
     </div>
     <section class="kp-final-card">
-      <div class="kp-final-card-head"><div><h3>Import Faktur Excel</h3><p>Gunakan Template Faktur V2. Satu file dapat berisi beberapa nomor faktur.</p></div></div>
+       <div class="kp-final-card-head"><div><h3>Impor Faktur Excel</h3><p>Pilih file hasil aplikasi Input Faktur Offline, lalu periksa datanya sebelum disimpan sebagai Draft.</p></div></div>
       <div class="kp-final-import">
         <div class="kp-final-filebox">
           <div class="kp-final-fileicon"><i class="fa-solid fa-file-excel"></i></div>
@@ -79,7 +90,6 @@ function build(){
           <label class="kp-file-trigger" for="invoice-import-file"><i class="fa-solid fa-folder-open"></i> Pilih File</label>
         </div>
         <div class="kp-final-actions">
-          <button type="button" class="kp-final-btn" id="kp-final-download"><i class="fa-solid fa-download"></i> Download Template</button>
           <button type="button" class="kp-final-btn primary" id="kp-final-preview" disabled><i class="fa-solid fa-magnifying-glass"></i> Baca & Preview</button>
         </div>
       </div>
@@ -95,11 +105,11 @@ function build(){
       <div class="kp-final-kpi"><span>Nilai Faktur</span><strong id="kp-final-value">Rp0</strong><small>Total nilai pembelian</small></div>
     </div>
     <section class="kp-final-card">
-      <div class="kp-final-card-head"><div><h3>Daftar Faktur Pembelian</h3><p>Draft bersifat read-only. Koreksi dilakukan di Excel lalu import ulang dengan nomor faktur yang sama.</p></div></div>
+       <div class="kp-final-card-head"><div><h3>Daftar Faktur Pembelian</h3><p>Perbaikan Draft dilakukan di aplikasi offline, kemudian file Excel diimpor ulang untuk mengganti Draft lama.</p></div></div>
       <div class="kp-final-toolbar">
         <input id="kp-final-search" type="search" placeholder="Cari nomor faktur atau supplier">
         <select id="kp-final-status"><option value="all">Semua Status</option><option value="draft">Draft</option><option value="done">Barang Masuk</option></select>
-        <select id="kp-final-supplier"><option value="all">Semua Supplier</option><option>Supplier 1</option><option>Supplier 2</option><option>Supplier 3</option><option>Supplier 4</option><option>Supplier 5</option><option>Supplier 6</option></select>
+        <select id="kp-final-supplier"><option value="all">Semua Perusahaan Supplier</option></select>
       </div>
       <div class="kp-final-tablewrap"><table class="kp-final-table"><thead><tr><th>Nomor Faktur</th><th>Tanggal</th><th>Supplier</th><th>Item</th><th>Total</th><th>Status</th><th style="text-align:right">Aksi</th></tr></thead><tbody id="kp-final-table-body"></tbody></table></div>
     </section>`;
@@ -150,6 +160,13 @@ function render(){
   const all=invoices(),draft=all.filter(x=>!x.stockApplied&&norm(x.status)!=='confirmed'),done=all.length-draft.length;
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   set('kp-final-total',all.length);set('kp-final-draft',draft.length);set('kp-final-done',done);set('kp-final-value',rupiah(all.reduce((s,x)=>s+invoiceTotal(x),0)));
+  const supplierFilter=document.getElementById('kp-final-supplier');
+  if(supplierFilter){
+    const current=supplierFilter.value||'all';
+    const supplierRows=[...new Map(all.map(inv=>[norm(inv.supplierCode||inv.supplierName),{value:text(inv.supplierCode||inv.supplierName),label:text(inv.supplierName||inv.supplierCode)}])).values()].filter(x=>x.value).sort((a,b)=>a.label.localeCompare(b.label,'id'));
+    supplierFilter.innerHTML='<option value="all">Semua Perusahaan Supplier</option>'+supplierRows.map(x=>`<option value="${escapeHtml(x.value)}">${escapeHtml(x.label)}</option>`).join('');
+    if([...supplierFilter.options].some(option=>option.value===current))supplierFilter.value=current;
+  }
   const body=document.getElementById('kp-final-table-body');if(!body)return;
   const rows=filteredInvoices();
   body.innerHTML=rows.length?rows.map(inv=>{const isDone=!!inv.stockApplied||norm(inv.status)==='confirmed',id=escapeHtml(inv.id);return `<tr><td><span class="kp-final-num">${escapeHtml(text(inv.number)||'—')}</span></td><td>${escapeHtml(dateLabel(inv.date))}</td><td>${escapeHtml(text(inv.supplierName||inv.supplierCode)||'—')}</td><td>${(inv.items||[]).length}</td><td><span class="kp-final-money">${rupiah(invoiceTotal(inv))}</span></td><td><span class="kp-final-status ${isDone?'done':'draft'}">${isDone?'Barang Masuk':'Draft'}</span></td><td><div class="kp-final-row-actions"><button type="button" data-kp-view-invoice="${id}"><i class="fa-solid fa-eye"></i> Lihat</button>${isDone?'':`<button type="button" class="confirm" data-invoice-confirm="${id}"><i class="fa-solid fa-box-open"></i> Barang Masuk</button>`}</div></td></tr>`;}).join(''):'<tr><td colspan="7" class="kp-final-empty">Belum ada faktur yang sesuai.</td></tr>';
@@ -161,11 +178,11 @@ function openReadOnly(id){
   const status=inv.stockApplied||norm(inv.status)==='confirmed'?'Barang Masuk':'Draft';
   const items=(inv.items||[]).map((item,index)=>
     `${index+1}. ${text(item.code)||'Tanpa kode'} — ${text(item.name)||'Produk'}\n`+
-    `   ${num(item.qty)} × ${rupiah(item.buyPrice)} = ${rupiah(invoiceSubtotal(item))}`
+    `   ${num(item.qty)} × ${rupiah(item.buyPrice)} · Diskon ${discountLabel(item.discountMethod,item.discountValue,item.discount)} = ${rupiah(invoiceSubtotal(item))}`
   ).join('\n');
   return window.KasirProDialog?.info?.(
     `Faktur ${text(inv.number)||'—'}`,
-    `Tanggal: ${dateLabel(inv.date)}\nSupplier: ${text(inv.supplierName||inv.supplierCode)||'—'}\nStatus: ${status}\nTotal: ${rupiah(invoiceTotal(inv))}\n\n${items||'Tidak ada item.'}`,
+    `Tanggal: ${dateLabel(inv.date)}\nSupplier: ${text(inv.supplierName||inv.supplierCode)||'—'}\nStatus: ${status}\nDiskon Faktur: ${discountLabel(inv.discountMethod,inv.discountValue,inv.discount)}\nTotal: ${rupiah(invoiceTotal(inv))}\n\n${items||'Tidak ada item.'}`,
     {confirmText:'Tutup'}
   );
 }
@@ -196,9 +213,8 @@ async function saveDraft(){
 function capture(event){
   const action=event.target.closest('button,a,label');if(!action)return;
   if(action.id==='kp-final-preview'){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();runPreview();return;}
-  if(action.id==='kp-final-download'){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();const api=window.KasirProInvoiceAT08;if(!api?.downloadTemplate)return window.KasirProDialog?.error?.('Template Belum Siap','Muat ulang aplikasi lalu coba kembali.');try{api.downloadTemplate();}catch(err){window.KasirProDialog?.error?.('Download Template Gagal',err?.message||String(err));}return;}
   if(action.id==='kp-final-save-draft'){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();saveDraft();return;}
-  const view=action.closest('[data-kp-view-invoice]');if(view){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();openReadOnly(view.dataset.kpViewInvoice);return;}
+   const view=action.closest('[data-kp-view-invoice]');if(view){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();openReadOnly(view.dataset.kpViewInvoice);return;}
 }
 
 function bind(){

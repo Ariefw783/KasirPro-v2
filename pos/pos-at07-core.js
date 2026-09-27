@@ -101,7 +101,7 @@ function init(){
     refreshPosProductCache(initialMaster?.produk);
     if(!validate())return;
     const st=settings();
-    $("pos-store-name").textContent=text(st["Nama Toko"])||"KasirPro";
+    $("pos-store-name").textContent=text(st["Nama Toko"]).replace(/\s+v\.?\s*2(?:\.0)?$/i,"").trim()||"Nama Toko";
     $("pos-user-name").textContent=session.name||session.username||"Kasir";
     $("back-management").title=session.role==="admin"?"Buka Management":"Management khusus Administrator";
     bind();
@@ -254,9 +254,9 @@ function calc(){
         dv=num($("cart-discount-value").value),
         transDiscount=mode==="percent"?afterItems*Math.min(dv,100)/100:Math.min(dv,afterItems),
         taxBase=Math.max(0,afterItems-transDiscount),
-        taxPercent=num(settings()["Pajak Default (%)"]),
-        tax=taxBase*taxPercent/100,
-        total=taxBase+tax;
+        taxPercent=0,
+        tax=0,
+        total=taxBase;
 
     return{subtotal,itemDiscount,transDiscount,taxPercent,tax,total};
 }
@@ -451,7 +451,6 @@ async function completeSale(){
 function renderReceipt(s){
     const st=settings(),
         showCashier=settingYes(st["Tampilkan Nama Kasir di Struk"]),
-        showTax=settingYes(st["Tampilkan Pajak di Struk"]),
         showDiscount=settingYes(st["Tampilkan Diskon di Struk"]),
         isVoid=norm(s.status)==="void";
 
@@ -486,7 +485,6 @@ function renderReceipt(s){
         <hr>
         <div class="receipt-row"><span>Subtotal</span><span>${rupiah(s.subtotal)}</span></div>
         ${showDiscount?`<div class="receipt-row"><span>Diskon</span><span>-${rupiah(num(s.itemDiscount)+num(s.transDiscount))}</span></div>`:""}
-        ${showTax&&num(s.tax)>0?`<div class="receipt-row"><span>Pajak</span><span>${rupiah(s.tax)}</span></div>`:""}
         <div class="receipt-row receipt-total"><span>TOTAL</span><span>${rupiah(s.total)}</span></div>
         <div class="receipt-row"><span>${escapeHtml(s.paymentMethod)}</span><span>${rupiah(s.paid)}</span></div>
         <div class="receipt-row"><span>Kembali</span><span>${rupiah(s.change)}</span></div>
@@ -502,7 +500,21 @@ function renderReceipt(s){
         <div class="receipt-footer">${escapeHtml(st["Footer Struk"]||"Terima kasih")}</div>
     `;
 
+    applyReceiptPrintSettings(st["Ukuran Struk"]);
     $("receipt-overlay").hidden=false;
+}
+
+function applyReceiptPrintSettings(value){
+    const size=["58mm","80mm","A4"].includes(text(value))?text(value):"80mm";
+    document.documentElement.dataset.receiptSize=size;
+    let style=document.getElementById("kasirpro-receipt-page-size");
+    if(!style){style=document.createElement("style");style.id="kasirpro-receipt-page-size";document.head.appendChild(style);}
+    if(size==="A4"){
+        style.textContent="@media print{@page{size:A4 portrait;margin:12mm}#receipt-print-area{width:186mm!important;max-width:none!important;margin:0 auto!important;padding:0!important;font-size:11pt!important}}";
+    }else{
+        const fontSize=size==="58mm"?"9px":"10px";
+        style.textContent=`@media print{@page{size:${size} auto;margin:3mm}#receipt-print-area{width:${size}!important;max-width:${size}!important;margin:0!important;padding:2mm!important;font-size:${fontSize}!important}}`;
+    }
 }
 
 function printReceipt(){
@@ -847,6 +859,3 @@ window.addEventListener("kasirpro:database-error", () => setAppLoading(false));
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startPos,{once:true});
 else startPos();
-
-
-

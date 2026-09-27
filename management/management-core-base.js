@@ -19,7 +19,7 @@ import {
 
 import { signOutKasirPro, sendKasirProPasswordReset, usernameToFirebaseEmail } from "../modules/database/auth.js";
 import { firebaseDb } from "../modules/database/firebase-client.js";
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { collection, doc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { documentSegments } from "../modules/database/database-paths.js";
 
 const databaseInitialization = initializeDatabase();
@@ -50,9 +50,18 @@ let masterAnalysis =
 
 let selectedUserRecord = null;
 let resetUserPasswordButton = null;
+let userDirectoryCache = [];
+let userDirectoryLoaded = false;
 
 let masterImportPlan =
     null;
+
+const MASTER_IMPORT_ALLOWED_SHEETS = new Set([
+    "petunjuk_import",
+    "produk",
+    "kategori",
+    "supplier"
+]);
 
 let activeMasterSheet =
     null;
@@ -451,18 +460,11 @@ const settingStoreEmail = document.getElementById("setting-store-email");
 const settingStoreNpwp = document.getElementById("setting-store-npwp");
 const settingStoreLogo = document.getElementById("setting-store-logo");
 const settingTransactionPrefix = document.getElementById("setting-transaction-prefix");
-const settingTransactionFormat = document.getElementById("setting-transaction-format");
-const settingInvoicePrefix = document.getElementById("setting-invoice-prefix");
-const settingInvoiceFormat = document.getElementById("setting-invoice-format");
 const settingCurrency = document.getElementById("setting-currency");
 const settingTimezone = document.getElementById("setting-timezone");
-const settingDefaultTax = document.getElementById("setting-default-tax");
 const settingReceiptSize = document.getElementById("setting-receipt-size");
-const settingDefaultPrinter = document.getElementById("setting-default-printer");
-const settingPaperWidth = document.getElementById("setting-paper-width");
 const settingShowLogo = document.getElementById("setting-show-logo");
 const settingShowCashier = document.getElementById("setting-show-cashier");
-const settingShowTax = document.getElementById("setting-show-tax");
 const settingShowDiscount = document.getElementById("setting-show-discount");
 const settingReceiptFooter = document.getElementById("setting-receipt-footer");
 const settingStoreNotes = document.getElementById("setting-store-notes");
@@ -571,6 +573,7 @@ function init() {
 
 
     setupCurrentUser(session);
+    updateManagementBrand();
 
     bindNavigation();
 
@@ -598,6 +601,16 @@ function init() {
     window.addEventListener("kasirpro:database-ready", renderDashboard);
 
     openDashboard();
+}
+
+function updateManagementBrand() {
+    const node = document.getElementById("management-store-name");
+    if (!node) return;
+    const store = loadStore();
+    const rows = store?.pengaturan_toko || store?.pengaturanToko || store?.pengaturan || [];
+    const settings = Array.isArray(rows) ? rows[0] : rows;
+    const name = String(settings?.["Nama Toko"] || "").trim().replace(/\s+v\.?\s*2(?:\.0)?$/i, "").trim();
+    node.textContent = name || "Management";
 }
 
 
@@ -1508,10 +1521,11 @@ async function readMasterFile() {
             `;
 
 
-        masterWorkbookData =
+        masterWorkbookData = sanitizeMasterWorkbook(
             await readExcelWorkbook(
                 selectedMasterExcelFile
-            );
+            )
+        );
 
 
         masterAnalysis =
@@ -2060,6 +2074,11 @@ function executeImport() {
                 existingMode
             }
         );
+
+    result.store = preserveOperationalMasterData(
+        currentStore,
+        result.store
+    );
 
 
     saveStore(
@@ -3060,9 +3079,10 @@ function closeSupplierDetail() {
 
 
 function bindUsers() {
-    refreshUsersButton?.addEventListener("click", () => {
+    refreshUsersButton?.addEventListener("click", async () => {
         userCurrentPage = 1;
-        renderUsersPage();
+        userDirectoryLoaded = false;
+        await renderUsersPage();
     });
 
     userSearch?.addEventListener("input", () => {
@@ -3121,11 +3141,52 @@ function bindUsers() {
 }
 
 
-function renderUsersPage() {
-    const store = loadStore();
-    const users = Array.isArray(store.pengguna) ? store.pengguna : [];
+async function renderUsersPage() {
+    if (!userDirectoryLoaded) {
+        const localUsers = Array.isArray(loadStore().pengguna) ? loadStore().pengguna : [];
+        try {
+            const snapshot = await getDocs(collection(firebaseDb, ...documentSegments("users")));
+            userDirectoryCache = snapshot.docs.map((item) => {
+                const data = item.data() || {};
+                return {
+                    "ID Pengguna": item.id,
+                    "Nama": data.name || data.displayName || data.username || "",
+                    "Role": data.role || "",
+                    "Username": data.username || "",
+                    "Nomor Telepon": data.phone || "",
+                    "Email": data.email || data.authEmail || "",
+                    "Status": data.status || "aktif",
+                    "Catatan": data.notes || ""
+                };
+            });
+        } catch (error) {
+            console.warn("Profil pengguna Firestore belum dapat dibaca:", error);
+            userDirectoryCache = localUsers;
+        }
 
-    updateUserSummary(users);
+        if (!userDirectoryCache.length) {
+            try {
+                const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "{}");
+                if (session?.username || session?.email || session?.uid) {
+                    userDirectoryCache = [{
+                        "ID Pengguna": session.uid || session.userId || "admin-aktif",
+                        "Nama": session.name || session.displayName || session.username || "Administrator",
+                        "Role": session.role || "admin",
+                        "Username": session.username || "",
+                        "Nomor Telepon": "",
+                        "Email": session.email || session.authEmail || "",
+                        "Status": "aktif",
+                        "Catatan": "Sesi admin aktif; lengkapi profil akun pada koleksi users."
+                    }];
+                }
+            } catch (error) {
+                console.warn("Sesi admin tidak dapat dijadikan profil sementara:", error);
+            }
+        }
+        userDirectoryLoaded = true;
+    }
+
+    updateUserSummary(userDirectoryCache);
     renderUsersTable();
 }
 
@@ -3143,8 +3204,7 @@ function updateUserSummary(users) {
 
 
 function renderUsersTable() {
-    const store = loadStore();
-    const users = Array.isArray(store.pengguna) ? store.pengguna : [];
+    const users = userDirectoryCache;
     const filtered = filterUsers(users);
     const totalPages = Math.max(1, Math.ceil(filtered.length / PRODUCT_PAGE_SIZE));
 
@@ -3518,6 +3578,74 @@ function getStatusLabel(
 }
 
 
+function sanitizeMasterWorkbook(workbook) {
+    const sheetNames = Array.isArray(workbook?.sheetNames)
+        ? workbook.sheetNames.filter((name) => MASTER_IMPORT_ALLOWED_SHEETS.has(normalizeText(name)))
+        : [];
+    const sheets = Object.fromEntries(
+        sheetNames
+            .filter((name) => workbook?.sheets?.[name])
+            .map((name) => [name, workbook.sheets[name]])
+    );
+
+    if (!["produk", "kategori", "supplier"].every((required) =>
+        sheetNames.some((name) => normalizeText(name) === required)
+    )) {
+        throw new Error("Master wajib berisi sheet PRODUK, KATEGORI, dan SUPPLIER.");
+    }
+
+    return {
+        ...workbook,
+        sheetNames,
+        sheets
+    };
+}
+
+
+function masterProductIdentity(product) {
+    const code = normalizeText(product?.["Kode Produk"]);
+    return code ? `code:${code}` : `name:${normalizeText(product?.["Nama Produk"])}`;
+}
+
+
+function preserveOperationalMasterData(currentStore, importedStore) {
+    const protectedStore = {
+        ...importedStore
+    };
+    const protectedKeys = new Set([
+        "pengguna",
+        "users",
+        "pengaturan",
+        "pengaturan_toko",
+        "settings",
+        "store_settings"
+    ]);
+
+    Object.keys(currentStore || {}).forEach((key) => {
+        if (protectedKeys.has(normalizeText(key))) {
+            protectedStore[key] = currentStore[key];
+        }
+    });
+
+    const existingStock = new Map(
+        (Array.isArray(currentStore?.produk) ? currentStore.produk : [])
+            .map((product) => [masterProductIdentity(product), product?.["Stok Awal"]])
+    );
+
+    protectedStore.produk = (Array.isArray(importedStore?.produk) ? importedStore.produk : [])
+        .map((product) => {
+            const identity = masterProductIdentity(product);
+            if (!existingStock.has(identity)) return product;
+            return {
+                ...product,
+                "Stok Awal": existingStock.get(identity)
+            };
+        });
+
+    return protectedStore;
+}
+
+
 function normalizeText(
     value
 ) {
@@ -3558,9 +3686,9 @@ function bindStoreSettings() {
         showSettingsNotice("Pengaturan dimuat ulang dari Master Store.", "info");
     });
 
-    storeSettingsForm?.addEventListener("submit", (event) => {
+    storeSettingsForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
-        showSettingsNotice("Pengaturan toko dikelola melalui Import Master Excel.", "info");
+        await saveStoreSettings();
     });
 }
 
@@ -3573,6 +3701,7 @@ function renderStoreSettingsPage() {
     const store = loadStore();
     const source = resolveStoreSettingsSource(store);
     const settings = source.rows[0] || {};
+    updateManagementBrand();
 
     setSettingsInput(settingStoreName, settings["Nama Toko"]);
     setSettingsInput(settingStoreStatus, settings["Status Toko"]);
@@ -3582,38 +3711,68 @@ function renderStoreSettingsPage() {
     setSettingsInput(settingStoreNpwp, settings["NPWP"]);
     setSettingsInput(settingStoreLogo, settings["Logo"]);
     setSettingsInput(settingTransactionPrefix, settings["Prefix Transaksi"]);
-    setSettingsInput(settingTransactionFormat, settings["Format Nomor Transaksi"]);
-    setSettingsInput(settingInvoicePrefix, settings["Prefix Faktur"]);
-    setSettingsInput(settingInvoiceFormat, settings["Format Nomor Faktur"]);
-    setSettingsInput(settingCurrency, settings["Mata Uang"]);
-    setSettingsInput(settingTimezone, settings["Zona Waktu"]);
-    setSettingsInput(settingDefaultTax, settings["Pajak Default (%)"]);
-    setSettingsInput(settingReceiptSize, settings["Ukuran Struk"]);
-    setSettingsInput(settingDefaultPrinter, settings["Printer Default"]);
-    setSettingsInput(settingPaperWidth, settings["Lebar Kertas"]);
+    setSettingsInput(settingCurrency, "IDR (Rupiah)");
+    setSettingsInput(settingTimezone, "Asia/Jakarta");
+    setSettingsInput(settingReceiptSize, settings["Ukuran Struk"] || "80mm");
     setSettingsCheckbox(settingShowLogo, settings["Tampilkan Logo di Struk"]);
     setSettingsCheckbox(settingShowCashier, settings["Tampilkan Nama Kasir di Struk"]);
-    setSettingsCheckbox(settingShowTax, settings["Tampilkan Pajak di Struk"]);
     setSettingsCheckbox(settingShowDiscount, settings["Tampilkan Diskon di Struk"]);
     setSettingsInput(settingReceiptFooter, settings["Footer Struk"]);
     setSettingsInput(settingStoreNotes, settings["Catatan"]);
 
     updateSettingsLogoPreview(settings["Logo"]);
 
-    storeSettingsForm.querySelectorAll("input, select, textarea, button[type='submit']").forEach((field) => {
-        field.disabled = true;
-    });
-
     if (settingsDataSource) {
         settingsDataSource.textContent = source.rows.length
-            ? `Sumber: ${source.label} \u2014 ${source.rows.length} konfigurasi \u2014 Kelola melalui Import Master Excel.`
-            : "Belum ada Pengaturan Toko di Master. Tambahkan melalui Import Master Excel.";
+            ? `Sumber: ${source.label} — perubahan disimpan saat tombol Simpan ditekan.`
+            : "Belum ada pengaturan tersimpan. Isi formulir lalu tekan Simpan Perubahan.";
     }
 }
 
 
-function saveStoreSettings() {
-    showSettingsNotice("Pengaturan toko dikelola melalui Import Master Excel.", "info");
+async function saveStoreSettings() {
+    const saveButton = storeSettingsForm?.querySelector("button[type='submit']");
+    if (saveButton) saveButton.disabled = true;
+    try {
+        const store = loadStore();
+        const source = resolveStoreSettingsSource(store);
+        const previous = source.rows[0] || {};
+        const settings = {
+            ...previous,
+            "Nama Toko": getSettingsInput(settingStoreName),
+            "Status Toko": getSettingsInput(settingStoreStatus),
+            "Alamat": getSettingsInput(settingStoreAddress),
+            "Telepon": getSettingsInput(settingStorePhone),
+            "NPWP": getSettingsInput(settingStoreNpwp),
+            "Prefix Transaksi": getSettingsInput(settingTransactionPrefix),
+            "Ukuran Struk": getSettingsInput(settingReceiptSize) || "80mm",
+            "Tampilkan Logo di Struk": settingShowLogo?.checked ? "Ya" : "Tidak",
+            "Tampilkan Nama Kasir di Struk": settingShowCashier?.checked ? "Ya" : "Tidak",
+            "Tampilkan Diskon di Struk": settingShowDiscount?.checked ? "Ya" : "Tidak",
+            "Footer Struk": getSettingsInput(settingReceiptFooter),
+            "Catatan": getSettingsInput(settingStoreNotes)
+        };
+        delete settings["Pajak Default (%)"];
+        delete settings["Printer Default"];
+        delete settings["Lebar Kertas"];
+        delete settings["Tampilkan Pajak di Struk"];
+        delete settings["Format Nomor Transaksi"];
+        delete settings["Prefix Faktur"];
+        delete settings["Format Nomor Faktur"];
+
+        store.pengaturan_toko = [settings];
+        if ("pengaturanToko" in store) store.pengaturanToko = [settings];
+        if ("pengaturan" in store) store.pengaturan = [settings];
+
+        await writeStore(MASTER_STORE_KEY, store);
+        updateManagementBrand();
+        showSettingsNotice("Pengaturan berhasil disimpan dan disinkronkan.", "success");
+    } catch (error) {
+        console.error("Pengaturan toko gagal disimpan:", error);
+        showSettingsNotice(error?.message || "Pengaturan belum dapat disimpan.", "error");
+    } finally {
+        if (saveButton) saveButton.disabled = false;
+    }
 }
 
 
@@ -3800,4 +3959,3 @@ function showSettingsNotice(message, type = "success") {
         3200
     );
 }
-

@@ -1,6 +1,6 @@
 /* KasirPro - Integrasi Faktur Pembelian V2
  * Kontrak:
- * - Supplier memakai label Supplier 1..Supplier 6.
+ * - Supplier diterima berdasarkan nama perusahaan atau ID/kode Master Supplier.
  * - Import faktur selalu Draft dan TIDAK mengubah stok.
  * - Produk existing dicocokkan hanya dengan Kode Produk.
  * - Produk tidak dikenal ditandai Produk Baru dan wajib direview Admin saat Barang Masuk.
@@ -15,11 +15,6 @@ import {
     writeStockTransaction,
     readCurrentStock
 } from "../modules/database/database-store.js";
-
-const ALLOWED_SUPPLIERS = new Set([
-    "supplier 1", "supplier 2", "supplier 3",
-    "supplier 4", "supplier 5", "supplier 6"
-]);
 
 let invoicePreviewV2 = [];
 let invoiceValidationV2 = [];
@@ -71,23 +66,22 @@ function suppliers(master = getMaster()) {
 function canonicalSupplier(value, master = getMaster()) {
     const raw = text(value);
     const label = norm(raw);
-    if (ALLOWED_SUPPLIERS.has(label)) {
-        const number = Number(label.replace(/\D/g, ""));
-        return `Supplier ${number}`;
-    }
+    if (!label) return "";
 
     const match = suppliers(master).find((row) =>
         norm(row?.["Nama Supplier"]) === label ||
-        norm(row?.["Supplier"]) === label
+        norm(row?.["Nama Perusahaan"]) === label ||
+        norm(row?.["Supplier"]) === label ||
+        norm(row?.["Kode Supplier"]) === label
     );
-    const resolved = text(match?.["Supplier"]);
-    return ALLOWED_SUPPLIERS.has(norm(resolved)) ? resolved : "";
+    return text(match?.["Supplier"] || match?.["Kode Supplier"]);
 }
 
 function supplierName(label, master = getMaster()) {
-    const row = suppliers(master).find((item) => norm(item?.["Supplier"]) === norm(label));
-    return text(row?.["Nama Supplier"]);
+    const row = suppliers(master).find((item) => norm(item?.["Supplier"]) === norm(label) || norm(item?.["Kode Supplier"]) === norm(label));
+    return text(row?.["Nama Supplier"] || row?.["Nama Perusahaan"]) || label;
 }
+function invoiceIdentity(invoice){return `${norm(invoice?.supplierCode||invoice?.supplierName)}::${norm(invoice?.number)}`;}
 
 function findProductByCode(code, master = getMaster()) {
     const key = norm(code);
@@ -134,7 +128,11 @@ function invoiceSubtotal(item) {
 function invoiceTotal(invoice) {
     const itemTotal = (invoice.items || []).reduce((sum, item) => sum + invoiceSubtotal(item), 0);
     const discounted = Math.max(0, itemTotal - num(invoice.discount));
-    return discounted + discounted * num(invoice.taxPercent) / 100 + num(invoice.otherCost);
+    const perItem = norm(invoice.taxMethod) === "per item" || norm(invoice.taxMethod) === "per_product";
+    const tax = perItem
+        ? (invoice.items || []).reduce((sum, item) => sum + invoiceSubtotal(item) * num(item.taxPercent) / 100, 0)
+        : discounted * num(invoice.taxPercent) / 100;
+    return discounted + tax + num(invoice.otherCost);
 }
 
 function sheetRows(workbook, names) {
@@ -179,7 +177,7 @@ async function previewInvoiceImportV2() {
         const number = text(row?.["Nomor Faktur"]) || `IMPORT-${index + 1}`;
         const supplier = invoiceSupplierFromHeader(row, master);
         if (!supplier) {
-            issues.push(`Faktur ${number}: Supplier harus menggunakan Supplier 1 sampai Supplier 6.`);
+            issues.push(`Faktur ${number}: nama perusahaan supplier tidak ditemukan pada Master Supplier.`);
         }
         map.set(norm(number), {
             id: uid("INV"),
@@ -287,14 +285,13 @@ async function applyInvoiceImportV2() {
     if (!invoicePreviewV2.length) return alert("Baca dan preview file faktur terlebih dahulu.");
     if (invoiceValidationV2.length) return alert("Import belum dapat dilakukan karena masih ada masalah validasi pada preview.");
 
-    const mode = $("invoice-duplicate-mode")?.value || "skip";
     const list = getInvoices();
     let added = 0;
     let updated = 0;
     let skipped = 0;
 
     for (const incoming of invoicePreviewV2) {
-        const index = list.findIndex((invoice) => norm(invoice.number) === norm(incoming.number));
+        const index = list.findIndex((invoice) => invoiceIdentity(invoice) === invoiceIdentity(incoming));
         if (index < 0) {
             list.unshift(incoming);
             added += 1;
@@ -302,26 +299,17 @@ async function applyInvoiceImportV2() {
         }
 
         const old = list[index];
-        if (mode === "skip") {
+        if (old.stockApplied || norm(old.status) === "confirmed") {
+            await window.KasirProDialog?.error?.("Faktur Sudah Dikonfirmasi", `Faktur ${incoming.number} dari ${incoming.supplierName || incoming.supplierCode} tidak dapat diimpor ulang karena stok sudah pernah diterapkan.`);
             skipped += 1;
             continue;
         }
-        if (old.stockApplied) {
-            skipped += 1;
-            continue;
-        }
-        if (mode === "overwrite") {
-            incoming.id = old.id;
-            incoming.createdAt = old.createdAt;
-            list[index] = incoming;
-            updated += 1;
-            continue;
-        }
-
-        old.items = [...(old.items || []), ...(incoming.items || [])];
-        old.updatedAt = nowIso();
-        old.status = "draft";
-        old.stockApplied = false;
+        const replace = await window.KasirProDialog?.confirm?.("Ganti Draft Lama?", `Seluruh isi Draft ${incoming.number} akan diganti oleh file terbaru. Item tidak akan digabungkan.`, {confirmText:"Ganti Draft"});
+        if (!replace) { skipped += 1; continue; }
+        incoming.id = old.id;
+        incoming.createdAt = old.createdAt;
+        incoming.updatedAt = nowIso();
+        list[index] = incoming;
         updated += 1;
     }
 
@@ -415,7 +403,7 @@ async function confirmInvoiceGoodsInV2(invoiceId) {
     if (invoice.stockApplied) return alert("Barang Masuk faktur ini sudah pernah diterapkan.");
 
     const supplier = canonicalSupplier(invoice.supplierCode || invoice.supplierName);
-    if (!supplier) return alert("Supplier faktur belum sesuai kontrak Supplier 1 sampai Supplier 6.");
+    if (!supplier) return alert("Nama perusahaan supplier pada faktur tidak ditemukan di Master Supplier.");
     invoice.supplierCode = supplier;
     invoice.supplierName = supplierName(supplier);
 
@@ -490,6 +478,7 @@ async function confirmInvoiceGoodsInV2(invoiceId) {
     }
 
     alert(`Barang Masuk faktur ${invoice.number} berhasil.\nStok operasional diperbarui melalui MutasiStok.${review.created.length ? `\nProduk Baru ditambahkan ke Master: ${review.created.length}.` : ""}`);
+    window.KasirProInvoiceFinalAT08?.render?.();
     document.querySelector('[data-view="goods-in"]')?.click();
 }
 

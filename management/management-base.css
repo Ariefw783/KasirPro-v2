@@ -133,12 +133,12 @@ button {
 
     border-radius: 9px;
 
-    background: var(--primary-soft);
+    background: #f5f9fd;
 }
 
 .brand-logo img {
-    width: 100%;
-    height: 100%;
+    width: 30px;
+    height: 30px;
 
     object-fit: contain;
 }
@@ -2039,6 +2039,7 @@ body.product-detail-open{overflow:hidden;}
 }
 
 .app-loading{position:fixed;inset:0;z-index:5000;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(3px)}.app-loading[hidden]{display:none}.app-loading-card{width:min(286px,100%);display:grid;justify-items:center;gap:6px;padding:18px 20px;border:1px solid rgba(148,163,184,.32);border-radius:14px;background:#fff;box-shadow:0 20px 58px rgba(15,23,42,.25);text-align:center}.app-loading-card i{color:var(--primary,#1769aa);font-size:1.35rem;line-height:1;animation:app-spin .8s linear infinite}.app-loading-card strong{color:var(--text-main,#0f2a43);font-size:.8rem;line-height:1.25}.app-loading-card span{max-width:230px;color:var(--text-muted,#66788a);font-size:.64rem;line-height:1.35}@keyframes app-spin{to{transform:rotate(360deg)}}
+.stock-loading-status{display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--text-secondary);font-size:.72rem}.stock-loading-status[hidden]{display:none}.stock-pagination{align-items:center}.stock-pagination .pagination{display:flex;gap:8px}.stock-pagination .button:disabled{opacity:.48;cursor:not-allowed}
 
 /* =========================================================
    SALES MANAGEMENT
@@ -2106,4 +2107,10 @@ body.product-detail-open{overflow:hidden;}
     body.sales-detail-printing .product-detail-footer { display:none!important; }
     body.sales-detail-printing .sales-detail-body { padding:0; }
 }
-
+.settings-readonly-info{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:14px;align-items:center;padding:16px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;color:#1e3a8a}
+.settings-readonly-info>i{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:#dbeafe;color:#2563eb}
+.settings-readonly-info strong,.settings-readonly-info p{display:block;margin:0}.settings-readonly-info p{margin-top:4px;color:#475569;font-size:12px;line-height:1.55}
+.settings-form :disabled{cursor:not-allowed;opacity:.78;background-color:#f8fafc}
+.settings-field-readonly input[readonly]{cursor:not-allowed;background:#f1f5f9;color:#64748b;border-color:#dbe3ea;padding-right:34px}
+.settings-field-readonly small{color:#64748b}.settings-field-readonly small i{margin-right:5px;color:#94a3b8}
+@media(max-width:720px){.settings-readonly-info{grid-template-columns:38px minmax(0,1fr)}.settings-readonly-info .button{grid-column:1/-1;width:100%}}

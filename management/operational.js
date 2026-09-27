@@ -18,6 +18,9 @@ let importedInvoicesPreview = [];
 let importedOpnamePreview = [];
 let editingInvoiceId = null;
 let editorItems = [];
+const STOCK_PAGE_SIZE = 50;
+let stockCurrentPage = 1;
+let stockRenderToken = 0;
 
 const $ = (id) => document.getElementById(id);
 const num = (v) => Number(String(v ?? 0).replace(/[^0-9.-]/g, "")) || 0;
@@ -62,6 +65,11 @@ function findProduct(ref = {}) {
         || null;
 }
 
+function discountAmount(method, value, base) {
+    const gross = Math.max(0, num(base));
+    const entered = Math.max(0, num(value));
+    return Math.min(gross, method === "percentage" ? gross * entered / 100 : entered);
+}
 function invoiceSubtotal(item) {
     const gross = num(item.qty) * num(item.buyPrice);
     return Math.max(0, gross - num(item.discount));
@@ -69,7 +77,10 @@ function invoiceSubtotal(item) {
 function invoiceTotal(inv) {
     const items = (inv.items || []).reduce((a, i) => a + invoiceSubtotal(i), 0);
     const afterDiscount = Math.max(0, items - num(inv.discount));
-    const tax = afterDiscount * num(inv.taxPercent) / 100;
+    const perItem = norm(inv.taxMethod) === "per item" || norm(inv.taxMethod) === "per_product";
+    const tax = perItem
+        ? (inv.items || []).reduce((a, i) => a + invoiceSubtotal(i) * num(i.taxPercent) / 100, 0)
+        : afterDiscount * num(inv.taxPercent) / 100;
     return afterDiscount + tax + num(inv.otherCost);
 }
 
@@ -87,6 +98,7 @@ function statusBadge(status) {
 function movementBadge(type) {
     const map = {
         purchase: ["Barang Masuk", "ok"],
+        opening: ["Stok Awal", "neutral"],
         opname: ["Stock Opname", "warn"],
         sale: ["Penjualan", "danger"],
         sale_void: ["VOID Penjualan", "neutral"],
@@ -138,12 +150,14 @@ function openInvoiceEditor(id = null) {
     $("invoice-payment-type").value = inv?.paymentType || "Cash";
     $("invoice-due-date").value = dateOnly(inv?.dueDate);
     $("invoice-tax").value = num(inv?.taxPercent);
-    $("invoice-discount").value = num(inv?.discount);
+    $("invoice-discount-method") && ($("invoice-discount-method").value = inv?.discountMethod || "nominal");
+    $("invoice-discount").value = num(inv?.discountValue ?? inv?.discount);
     $("invoice-other-cost").value = num(inv?.otherCost);
     $("invoice-notes").value = inv?.notes || "";
     editorItems = (inv?.items || []).map((i) => ({ ...i }));
+    $("invoice-item-discount-method") && ($("invoice-item-discount-method").value = "nominal");
     const locked = inv && norm(inv.status) === "confirmed";
-    ["invoice-number","invoice-date","invoice-supplier","invoice-payment-type","invoice-due-date","invoice-tax","invoice-discount","invoice-other-cost","invoice-notes","invoice-item-product","invoice-item-qty","invoice-item-buy","invoice-item-sell","invoice-item-discount","add-invoice-item","save-invoice-draft"].forEach((id2) => { if ($(id2)) $(id2).disabled = !!locked; });
+    ["invoice-number","invoice-date","invoice-supplier","invoice-payment-type","invoice-due-date","invoice-tax","invoice-discount-method","invoice-discount","invoice-other-cost","invoice-notes","invoice-item-product","invoice-item-qty","invoice-item-buy","invoice-item-sell","invoice-item-discount-method","invoice-item-discount","add-invoice-item","save-invoice-draft"].forEach((id2) => { if ($(id2)) $(id2).disabled = !!locked; });
     $("confirm-invoice").hidden = !!locked;
     renderEditorItems();
     $("invoice-editor-overlay").hidden = false;
@@ -153,10 +167,18 @@ function closeInvoiceEditor() { $("invoice-editor-overlay") && ($("invoice-edito
 function readEditorHeader() {
     const sc = $("invoice-supplier").value;
     const sup = suppliers().find((s) => norm(s["Kode Supplier"]) === norm(sc));
+    const discountMethod = $("invoice-discount-method")?.value || "nominal";
+    const discountValue = num($("invoice-discount").value);
+    const subtotal = editorItems.reduce((sum, item) => sum + invoiceSubtotal(item), 0);
     return {
         number: text($("invoice-number").value), date: $("invoice-date").value, supplierCode: sc,
         supplierName: text(sup?.["Nama Supplier"]), paymentType: $("invoice-payment-type").value,
-        dueDate: $("invoice-due-date").value, taxPercent: num($("invoice-tax").value), discount: num($("invoice-discount").value),
+        dueDate: $("invoice-due-date").value, taxMethod: editingInvoiceId
+            ? (getInvoices().find((invoice) => invoice.id === editingInvoiceId)?.taxMethod || "Global")
+            : "Global",
+        taxPercent: num($("invoice-tax").value),
+        discount: discountAmount(discountMethod, discountValue, subtotal),
+        discountMethod, discountValue,
         otherCost: num($("invoice-other-cost").value), notes: text($("invoice-notes").value)
     };
 }
@@ -170,13 +192,21 @@ function renderEditorItems() {
 function addEditorItem() {
     const idx = Number($("invoice-item-product").value);
     const p = products()[idx]; if (!p) return alert("Pilih produk terlebih dahulu.");
-    editorItems.push({ code: text(p["Kode Produk"]), name: text(p["Nama Produk"]), unit: text(p["Satuan"]), qty: num($("invoice-item-qty").value), buyPrice: num($("invoice-item-buy").value) || num(p["Harga Beli"]), sellPrice: num($("invoice-item-sell").value) || num(p["Harga Jual"]), discount: num($("invoice-item-discount").value), batch: text(p["Batch"]), expired: dateOnly(p["Tanggal Expired"]) });
+    const qty = num($("invoice-item-qty").value);
+    const buyPrice = num($("invoice-item-buy").value) || num(p["Harga Beli"]);
+    const discountMethod = $("invoice-item-discount-method")?.value || "nominal";
+    const discountValue = num($("invoice-item-discount").value);
+    if (qty <= 0) return alert("Qty harus lebih dari 0.");
+    if (discountValue < 0 || (discountMethod === "percentage" && discountValue > 100)) return alert("Diskon item harus valid (Persen 0–100).");
+    editorItems.push({ code: text(p["Kode Produk"]), name: text(p["Nama Produk"]), unit: text(p["Satuan"]), qty, buyPrice, sellPrice: num($("invoice-item-sell").value) || num(p["Harga Jual"]), discount: discountAmount(discountMethod, discountValue, qty * buyPrice), discountMethod, discountValue, batch: text(p["Batch"]), expired: dateOnly(p["Tanggal Expired"]) });
     renderEditorItems();
 }
 function saveInvoiceFromEditor(confirmNow = false) {
     const head = readEditorHeader();
     if (!head.number) return alert("Nomor Faktur wajib diisi untuk penyimpanan Management.");
     if (!editorItems.length) return alert("Tambahkan minimal satu item faktur.");
+    if (head.paymentType === "Tempo" && !head.dueDate) return alert("Tanggal Jatuh Tempo wajib untuk pembayaran Tempo.");
+    if (head.discountValue < 0 || (head.discountMethod === "percentage" && head.discountValue > 100)) return alert("Diskon faktur harus valid (Persen 0–100).");
     const list = getInvoices();
     const duplicate = list.find((x) => norm(x.number) === norm(head.number) && x.id !== editingInvoiceId);
     if (duplicate) return alert("Nomor faktur sudah ada.");
@@ -246,31 +276,76 @@ async function previewInvoiceImport() {
         $("invoice-import-preview").hidden = false; $("invoice-import-actions").hidden = false;
     } catch (e) { alert(e.message || "Gagal membaca faktur."); }
 }
-function applyInvoiceImport() {
+async function applyInvoiceImport() {
     if (!importedInvoicesPreview.length) return;
-    const mode = $("invoice-duplicate-mode").value; let list = getInvoices(); let added=0, skipped=0, updated=0;
+    let list = getInvoices(); let added=0, skipped=0, updated=0;
     for (const incoming of importedInvoicesPreview) {
-        const idx = list.findIndex((x)=>norm(x.number)===norm(incoming.number));
+        const identity=(item)=>`${norm(item.supplierCode||item.supplierName)}::${norm(item.number)}`;
+        const idx = list.findIndex((x)=>identity(x)===identity(incoming));
         if (idx < 0) { list.unshift(incoming); added++; continue; }
         const old = list[idx];
-        if (mode === "skip") { skipped++; continue; }
-        if (old.stockApplied) {
-            alert(`Faktur ${old.number} sudah menyesuaikan stok. Demi keamanan, faktur ini tidak ditimpa/digabung otomatis.`); skipped++; continue;
+        if (old.stockApplied || norm(old.status)==="confirmed") {
+            await window.KasirProDialog?.error?.("Faktur Sudah Dikonfirmasi",`Faktur ${old.number} sudah menyesuaikan stok dan tidak dapat diimpor ulang.`); skipped++; continue;
         }
-        if (mode === "overwrite") { incoming.id = old.id; incoming.createdAt = old.createdAt; list[idx] = incoming; updated++; }
-        else { old.items = [...(old.items||[]), ...(incoming.items||[])]; old.updatedAt=nowIso(); updated++; }
+        const replace=await window.KasirProDialog?.confirm?.("Ganti Draft Lama?",`Seluruh isi Draft ${old.number} akan diganti oleh file terbaru. Item tidak akan digabungkan.`,{confirmText:"Ganti Draft"});
+        if(!replace){skipped++;continue;}
+        incoming.id=old.id;incoming.createdAt=old.createdAt;incoming.updatedAt=nowIso();list[idx]=incoming;updated++;
     }
     saveInvoices(list); alert(`Import selesai. Baru: ${added}, diperbarui: ${updated}, dilewati: ${skipped}.`); importedInvoicesPreview=[]; renderInvoices(); navigate("purchase-invoices");
 }
 
 function renderStock() {
-    const q = norm($("stock-search")?.value); const list = products();
-    const filtered = list.filter((p)=>!q || [p["Kode Produk"],p["Nama Produk"]].some((x)=>norm(x).includes(q)));
+    const q = norm($("stock-search")?.value);
+    const list = products();
+    const supplierNames = new Map(suppliers().map((supplier) => [norm(supplier["Kode Supplier"]), text(supplier["Supplier"] || supplier["Nama Supplier"])]));
+    const supplierLabel = (product) => supplierNames.get(norm(product["Supplier"] || product["Kode Supplier"])) || text(product["Supplier"] || product["Kode Supplier"]);
+    const updateFilterOptions = (id, labels) => {
+        const select = $(id); if (!select) return;
+        const selected = select.value;
+        const options = [...new Map(labels.filter(Boolean).map((label) => [norm(label), label])).entries()]
+            .sort((a, b) => a[1].localeCompare(b[1], "id-ID"));
+        select.replaceChildren(select.options[0], ...options.map(([value, label]) => new Option(label, value)));
+        select.value = selected;
+    };
+    updateFilterOptions("stock-category-filter", list.map((p) => text(p["Kategori"])));
+    updateFilterOptions("stock-supplier-filter", list.map(supplierLabel));
+    const category = $("stock-category-filter")?.value || "";
+    const supplier = $("stock-supplier-filter")?.value || "";
+    const status = $("stock-status-filter")?.value || "";
+    const stockStatus = (p) => {
+        const stock = num(p["Stok Awal"]), minimum = num(p["Stok Minimum"]);
+        return stock <= 0 ? "empty" : minimum > 0 && stock <= minimum ? "low" : "safe";
+    };
+    const filtered = list.filter((p) =>
+        (!q || [p["Kode Produk"], p["Nama Produk"]].some((x) => norm(x).includes(q)))
+        && (!category || norm(p["Kategori"]) === category)
+        && (!supplier || norm(supplierLabel(p)) === supplier)
+        && (!status || stockStatus(p) === status)
+    );
+    if ($("stock-reset-filter")) $("stock-reset-filter").hidden = !(q || category || supplier || status);
     $("stock-product-count") && ($("stock-product-count").textContent = list.length);
     $("stock-unit-count") && ($("stock-unit-count").textContent = list.reduce((a,p)=>a+num(p["Stok Awal"]),0));
-    $("stock-alert-count") && ($("stock-alert-count").textContent = list.filter((p)=>num(p["Stok Awal"])<=num(p["Stok Minimum"]) && num(p["Stok Minimum"])>0 || num(p["Stok Awal"])<=0).length);
+    $("stock-alert-count") && ($("stock-alert-count").textContent = list.filter((p)=>stockStatus(p)!=="safe").length);
     const body=$("stock-table-body"); if(!body)return;
-    body.innerHTML=filtered.length?filtered.map((p)=>{const st=num(p["Stok Awal"]), mn=num(p["Stok Minimum"]); const badge=st<=0?'<span class="stock-badge stock-empty">Habis</span>':mn>0&&st<=mn?'<span class="stock-badge stock-low">Menipis</span>':'<span class="stock-badge stock-safe">Aman</span>'; return `<tr><td>${text(p["Kode Produk"])||"—"}</td><td>${text(p["Nama Produk"])||"—"}</td><td>${text(p["Kategori"])||"—"}</td><td><div class="product-stock"><strong>${st}</strong>${badge}</div></td><td>${mn}</td><td>${rupiah(p["Harga Beli"])}</td><td>${rupiah(st*num(p["Harga Beli"]))}</td><td>${text(p["Lokasi Rak"])||"—"}</td></tr>`}).join(""):'<tr><td colspan="8" class="empty-table-state">Tidak ada produk.</td></tr>';
+    const totalPages=Math.max(1,Math.ceil(filtered.length/STOCK_PAGE_SIZE));
+    stockCurrentPage=Math.min(Math.max(1,stockCurrentPage),totalPages);
+    const first=(stockCurrentPage-1)*STOCK_PAGE_SIZE;
+    const visible=filtered.slice(first,first+STOCK_PAGE_SIZE);
+    body.innerHTML=visible.length?visible.map((p)=>{const st=num(p["Stok Awal"]), mn=num(p["Stok Minimum"]); const badge=st<=0?'<span class="stock-badge stock-empty">Habis</span>':mn>0&&st<=mn?'<span class="stock-badge stock-low">Menipis</span>':'<span class="stock-badge stock-safe">Aman</span>'; return `<tr><td>${text(p["Kode Produk"])||"—"}</td><td>${text(p["Nama Produk"])||"—"}</td><td>${text(p["Kategori"])||"—"}</td><td><div class="product-stock"><strong>${st}</strong>${badge}</div></td><td>${mn}</td><td>${rupiah(p["Harga Beli"])}</td><td>${rupiah(st*num(p["Harga Beli"]))}</td><td>${text(p["Lokasi Rak"])||"—"}</td></tr>`}).join(""):'<tr><td colspan="8" class="empty-table-state">Tidak ada produk.</td></tr>';
+    const info=$("stock-page-info"); if(info) info.textContent=filtered.length?`Menampilkan ${first+1}–${first+visible.length} dari ${filtered.length.toLocaleString("id-ID")} produk`:'Tidak ada produk yang cocok';
+    if($("stock-prev-page")) $("stock-prev-page").disabled=stockCurrentPage<=1;
+    if($("stock-next-page")) $("stock-next-page").disabled=stockCurrentPage>=totalPages;
+}
+
+function scheduleStockRender() {
+    const token=++stockRenderToken;
+    const status=$("stock-loading-status");
+    if(status) status.hidden=false;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(token!==stockRenderToken)return;
+        try { renderStock(); }
+        finally { if(status) status.hidden=true; }
+    }));
 }
 function renderMovements() {
     const q=norm($("movement-search")?.value), tf=$("movement-type-filter")?.value||""; const rows=getMovements().filter((m)=>(!tf||m.type===tf)&&(!q||[m.reference,m.productCode,m.productName,m.type,m.note].some((x)=>norm(x).includes(q))));
@@ -494,22 +569,6 @@ async function voidManagementSale() {
     renderMovements();
     renderReports();
     openManagementSaleDetail(sale.id || sale.number);
-}
-
-function exportManagementSalesCsv() {
-    if (!filteredManagementSales.length) return alert("Tidak ada transaksi untuk diekspor.");
-    const rows = filteredManagementSales.map((sale) => ({ "Waktu": fmtDateTime(sale.at), "Nomor Transaksi": sale.number, "Kasir": sale.cashier, "Pembayaran": sale.paymentMethod, "Produk Terjual": (sale.items || []).reduce((sum, item) => sum + num(item.qty), 0), "Subtotal": num(sale.subtotal), "Diskon": num(sale.itemDiscount) + num(sale.transDiscount), "Pajak": num(sale.tax), "Total": num(sale.total), "Dibayar": num(sale.paid), "Kembalian": num(sale.change), "Status": managementSaleStatus(sale), "Alasan VOID": sale.voidReason || "" }));
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.map(reportCsvCell).join(","), ...rows.map((row) => headers.map((header) => reportCsvCell(row[header])).join(","))].join("\r\n");
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `KasirPro_Transaksi_Penjualan_${reportDateInput(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
 }
 
 function sanitizeBackupValue(value) {
@@ -855,44 +914,35 @@ function updateReportPeriodInputs() {
     renderReports();
 }
 
-function reportCsvCell(value) {
-    const textValue = String(value ?? "");
-    return /[",\n\r]/.test(textValue) ? `"${textValue.replace(/"/g, '""')}"` : textValue;
-}
-
-function exportCurrentReport() {
-    const rows = reportExportRows[activeReportTab] || [];
-    if (!rows.length) return alert("Tidak ada data pada laporan aktif untuk diekspor.");
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.map(reportCsvCell).join(","), ...rows.map((row) => headers.map((header) => reportCsvCell(row[header])).join(","))].join("\r\n");
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `KasirPro_Laporan_${activeReportTab}_${reportDateInput(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-}
-
 function renderAllOperational(){renderInvoices();renderStock();renderMovements();renderOpnameHistory();renderManagementSales();renderReports();}
+
+function renderOperationalView(view) {
+    if(view==="stock") { scheduleStockRender(); return; }
+    if(view==="purchase-invoices" || view==="import-faktur") renderInvoices();
+    if(view==="goods-in") renderMovements();
+    if(view==="stock-opname") renderOpnameHistory();
+    if(view==="sales") renderManagementSales();
+    if(view==="reports") renderReports();
+}
 
 function bindOperational(){
     $("new-invoice")?.addEventListener("click",()=>showOpsNotice("Faktur pembelian dikelola melalui Import Excel.","info")); $("close-invoice-editor")?.addEventListener("click",closeInvoiceEditor); $("invoice-editor-overlay")?.addEventListener("click",e=>{if(e.target===$("invoice-editor-overlay"))closeInvoiceEditor()});
     $("invoice-item-product")?.addEventListener("change",()=>{const p=products()[Number($("invoice-item-product").value)];if(p){$("invoice-item-buy").value=num(p["Harga Beli"]);$("invoice-item-sell").value=num(p["Harga Jual"]);}});
     $("add-invoice-item")?.addEventListener("click",addEditorItem); $("save-invoice-draft")?.addEventListener("click",()=>saveInvoiceFromEditor(false)); $("confirm-invoice")?.addEventListener("click",()=>saveInvoiceFromEditor(true));
+    $("invoice-discount")?.addEventListener("input",renderEditorItems);
+    $("invoice-discount-method")?.addEventListener("change",renderEditorItems);
+    $("invoice-tax")?.addEventListener("input",renderEditorItems);
     $("invoice-search")?.addEventListener("input",renderInvoices); $("invoice-status-filter")?.addEventListener("change",renderInvoices); $("go-import-invoice")?.addEventListener("click",()=>navigate("import-faktur"));
     $("read-invoice-import")?.addEventListener("click",previewInvoiceImport); $("apply-invoice-import")?.addEventListener("click",applyInvoiceImport);
-    $("refresh-stock")?.addEventListener("click",renderStock); $("stock-search")?.addEventListener("input",renderStock); $("export-stock-opname")?.addEventListener("click",exportStockOpname); $("opname-export-button")?.addEventListener("click",exportStockOpname); $("go-import-opname")?.addEventListener("click",()=>navigate("import-opname")); $("export-database-backup")?.addEventListener("click",exportDatabaseBackup);
+    $("refresh-stock")?.addEventListener("click",()=>{stockCurrentPage=1;scheduleStockRender()}); $("stock-search")?.addEventListener("input",()=>{stockCurrentPage=1;scheduleStockRender()}); ["stock-category-filter","stock-supplier-filter","stock-status-filter"].forEach((id)=>$(id)?.addEventListener("change",()=>{stockCurrentPage=1;scheduleStockRender()})); $("stock-reset-filter")?.addEventListener("click",()=>{["stock-search","stock-category-filter","stock-supplier-filter","stock-status-filter"].forEach((id)=>{if($(id))$(id).value=""});stockCurrentPage=1;scheduleStockRender()}); $("stock-prev-page")?.addEventListener("click",()=>{if(stockCurrentPage>1){stockCurrentPage--;scheduleStockRender()}}); $("stock-next-page")?.addEventListener("click",()=>{stockCurrentPage++;scheduleStockRender()}); $("opname-export-button")?.addEventListener("click",exportStockOpname); $("go-import-opname")?.addEventListener("click",()=>navigate("import-opname")); $("export-database-backup")?.addEventListener("click",exportDatabaseBackup);
     $("read-opname-import")?.addEventListener("click",previewOpnameImport); $("confirm-opname-import")?.addEventListener("click",confirmOpnameImport); $("refresh-goods-in")?.addEventListener("click",renderMovements); $("movement-search")?.addEventListener("input",renderMovements); $("movement-type-filter")?.addEventListener("change",renderMovements);
-    $("sales-search")?.addEventListener("input",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-period")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-status-filter")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-payment-filter")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-refresh")?.addEventListener("click",renderManagementSales); $("sales-export-csv")?.addEventListener("click",exportManagementSalesCsv); $("sales-prev-page")?.addEventListener("click",()=>{if(salesCurrentPage>1){salesCurrentPage--;renderManagementSales()}}); $("sales-next-page")?.addEventListener("click",()=>{if(salesCurrentPage*SALES_PAGE_SIZE<filteredManagementSales.length){salesCurrentPage++;renderManagementSales()}});
+    $("sales-search")?.addEventListener("input",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-period")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-status-filter")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-payment-filter")?.addEventListener("change",()=>{salesCurrentPage=1;renderManagementSales()}); $("sales-refresh")?.addEventListener("click",renderManagementSales); $("sales-prev-page")?.addEventListener("click",()=>{if(salesCurrentPage>1){salesCurrentPage--;renderManagementSales()}}); $("sales-next-page")?.addEventListener("click",()=>{if(salesCurrentPage*SALES_PAGE_SIZE<filteredManagementSales.length){salesCurrentPage++;renderManagementSales()}});
     $("close-sales-detail")?.addEventListener("click",closeManagementSaleDetail); $("sales-detail-close-button")?.addEventListener("click",closeManagementSaleDetail); $("sales-detail-print")?.addEventListener("click",printManagementSaleDetail); $("sales-detail-void")?.addEventListener("click",voidManagementSale); $("sales-detail-overlay")?.addEventListener("click",(event)=>{if(event.target===$("sales-detail-overlay"))closeManagementSaleDetail()});
-    $("report-period")?.addEventListener("change",updateReportPeriodInputs); $("report-start-date")?.addEventListener("change",renderReports); $("report-end-date")?.addEventListener("change",renderReports); $("report-search")?.addEventListener("input",renderReports); $("report-refresh")?.addEventListener("click",renderReports); $("report-export-csv")?.addEventListener("click",exportCurrentReport); $("report-print")?.addEventListener("click",()=>window.print());
+    $("report-period")?.addEventListener("change",updateReportPeriodInputs); $("report-start-date")?.addEventListener("change",renderReports); $("report-end-date")?.addEventListener("change",renderReports); $("report-search")?.addEventListener("input",renderReports); $("report-refresh")?.addEventListener("click",renderReports); $("report-print")?.addEventListener("click",()=>window.print());
     document.querySelectorAll("[data-report-tab]").forEach((button)=>button.addEventListener("click",()=>setReportTab(button.dataset.reportTab)));
-    document.querySelectorAll("[data-view]").forEach((b)=>b.addEventListener("click",()=>setTimeout(renderAllOperational,0)));
+    document.querySelectorAll("[data-view]").forEach((b)=>b.addEventListener("click",()=>setTimeout(()=>renderOperationalView(b.dataset.view),0)));
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("invoice-editor-overlay")?.hidden)closeInvoiceEditor();if(e.key==="Escape"&&!$("sales-detail-overlay")?.hidden)closeManagementSaleDetail()});
-    const today = new Date(); if ($("report-start-date")) $("report-start-date").value = reportDateInput(new Date(today.getFullYear(), today.getMonth(), 1)); if ($("report-end-date")) $("report-end-date").value = reportDateInput(today); setReportTab(activeReportTab); renderAllOperational();
+    const today = new Date(); if ($("report-start-date")) $("report-start-date").value = reportDateInput(new Date(today.getFullYear(), today.getMonth(), 1)); if ($("report-end-date")) $("report-end-date").value = reportDateInput(today); setReportTab(activeReportTab); renderOperationalView(document.querySelector(".view-section:not([hidden])")?.dataset.viewSection);
 }
 
 async function startOperational() {
@@ -909,4 +959,3 @@ if (document.readyState === "loading") {
 } else {
     startOperational();
 }
-

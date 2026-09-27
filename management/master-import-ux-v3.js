@@ -37,7 +37,7 @@ function rebuildStep4(){
   wrap.innerHTML=`
     <h3 class="kp-replace-title">4. Simpan Master Baru</h3>
     <p class="kp-replace-sub">Langkah terakhir. Pastikan file Excel sudah berisi seluruh Master yang ingin digunakan.</p>
-    <div class="kp-replace-warning"><strong>Perhatian: Master lama akan diganti seluruhnya</strong><p>Setelah disimpan, Supplier, Kategori, Produk, dan Pengaturan Toko di KasirPro akan mengikuti isi file Excel ini. Data Master yang tidak ada di file baru tidak akan dipakai lagi.</p></div>
+    <div class="kp-replace-warning"><strong>Perhatian: Master lama akan diganti seluruhnya</strong><p>Setelah disimpan, Supplier, Kategori, dan Produk akan mengikuti isi file Excel ini. Pengaturan Toko tetap dikelola di halaman V2; stok berjalan produk lama tidak diubah.</p></div>
     <div class="kp-replace-safe"><strong>Yang tidak ikut dihapus:</strong><ul class="kp-replace-list"><li>Transaksi penjualan</li><li>Faktur pembelian</li><li>Riwayat Mutasi Stok</li><li>Riwayat Stock Opname</li><li>Akun Admin dan Kasir</li></ul></div>
     <label class="kp-replace-consent"><input id="kp-master-replace-consent" type="checkbox"><span>Saya sudah memeriksa file Excel dan memahami bahwa Master lama akan diganti dengan isi file ini.</span></label>`;
   stage.innerHTML="";

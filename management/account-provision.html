@@ -3,17 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#0f2a43">
   <title>Tambah Akun Kasir · KasirPro</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon-180.png">
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="management.css">
   <style>
-    body{background:#f6f8fb}.provision-shell{max-width:760px;margin:40px auto;padding:0 20px}.provision-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:28px;box-shadow:0 12px 35px #0f172a12}.provision-card h1{margin:0 0 8px}.provision-card p{color:#64748b}.provision-form{display:grid;gap:18px;margin-top:24px}.provision-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.provision-field{display:grid;gap:7px}.provision-field label{font-weight:600;color:#334155}.provision-field input,.provision-field select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}.provision-help{font-size:.88rem;color:#64748b;margin:0}.provision-notice{padding:12px 14px;border-radius:10px;background:#ecfeff;color:#155e75}.provision-notice.error{background:#fef2f2;color:#991b1b}.provision-notice.success{background:#ecfdf5;color:#166534}.provision-actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.provision-actions a{text-decoration:none}.provision-actions button{border:0;cursor:pointer}.provision-actions button:disabled{opacity:.6;cursor:wait}@media(max-width:640px){.provision-grid{grid-template-columns:1fr}.provision-card{padding:20px}.provision-shell{margin:20px auto}}
+    body{background:#f6f8fb}.provision-shell{max-width:760px;margin:40px auto;padding:0 20px}.provision-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:28px;box-shadow:0 12px 35px #0f172a12}.provision-brand{display:flex;align-items:center;gap:10px;margin:0 0 24px}.provision-brand img{width:38px;height:38px}.provision-brand strong{display:block;color:#0f2a43;font-size:1.05rem}.provision-brand span{display:block;color:#64748b;font-size:.78rem}.provision-card h1{margin:22px 0 8px}.provision-card p{color:#64748b}.provision-form{display:grid;gap:18px;margin-top:24px}.provision-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.provision-field{display:grid;gap:7px}.provision-field label{font-weight:600;color:#334155}.provision-field input,.provision-field select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}.provision-help{font-size:.88rem;color:#64748b;margin:0}.provision-notice{padding:12px 14px;border-radius:10px;background:#ecfeff;color:#155e75}.provision-notice.error{background:#fef2f2;color:#991b1b}.provision-notice.success{background:#ecfdf5;color:#166534}.provision-actions{display:flex;justify-content:space-between;gap:12px;align-items:center}.provision-actions a{text-decoration:none}.provision-actions button{border:0;cursor:pointer}.provision-actions button:disabled{opacity:.6;cursor:wait}@media(max-width:640px){.provision-grid{grid-template-columns:1fr}.provision-card{padding:20px}.provision-shell{margin:20px auto}.provision-actions{align-items:stretch;flex-direction:column}}
   </style>
 </head>
 <body>
   <main class="provision-shell">
     <section class="provision-card" aria-labelledby="page-title">
+      <div class="provision-brand"><img src="../assets/kasirpro-symbol.svg" alt=""><div><strong>KasirPro</strong><span>Management</span></div></div>
       <a href="index.html" class="button button-secondary"><i class="fa-solid fa-arrow-left"></i> Kembali ke Pengguna</a>
       <h1 id="page-title">Tambah Akun Kasir</h1>
       <p>Buat akun Kasir 1, Kasir 2, dan seterusnya. Password hanya dikirim ke Firebase Authentication dan tidak disimpan di database.</p>

@@ -9,8 +9,10 @@
     <title>Management | KasirPro</title>
 
     <link rel="manifest" href="../manifest.webmanifest">
+    <link rel="icon" href="../assets/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="../assets/icon-192.png">
-    <link rel="apple-touch-icon" href="../assets/icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon-180.png">
 
     <link rel="stylesheet" href="management.css">
     <link rel="stylesheet" href="management-mobile.css">
@@ -32,7 +34,7 @@
 
             <div class="brand-logo">
                 <img
-                    src="../assets/logo.png"
+                    src="../assets/kasirpro-symbol.svg"
                     alt="Logo KasirPro"
                     onerror="this.style.display='none'"
                 >
@@ -40,7 +42,7 @@
 
             <div class="brand-text">
                 <strong>KasirPro</strong>
-                <span>Management</span>
+                <span id="management-store-name">Apotek Doa Ibu</span>
             </div>
 
         </div>
@@ -461,12 +463,12 @@
                         <div class="module-header-actions">
 
                             <a
-                                href="../data/templates/Template_Master_KasirPro.xlsx"
+                                href="../data/templates/Template_Master_KasirPro_V2.xlsx"
                                 class="button button-secondary"
-                                download
+                                download="Template_Master_KasirPro_V2.xlsx"
                             >
                                 <i class="fa-solid fa-download"></i>
-                                Download Template
+                                Download Template Master
                             </a>
 
                         </div>
@@ -1278,11 +1280,10 @@
 
             <section class="view-section" data-view-section="import-faktur" hidden>
                 <div class="ops-page">
-                    <header class="module-header"><div><h2>Import Faktur Pembelian</h2><p>Import workbook Template_Faktur_KasirPro.xlsx. Faktur hasil import disimpan sebagai Draft dan tidak mengubah stok sampai dikonfirmasi.</p></div><a href="../data/templates/Template_Faktur_KasirPro.xlsx" class="button button-secondary" download><i class="fa-solid fa-download"></i> Download Template</a></header>
+                    <header class="module-header"><div><h2>Import Faktur Pembelian</h2><p>Impor file dari aplikasi Input Faktur Offline. Faktur disimpan sebagai Draft dan tidak mengubah stok sampai dikonfirmasi.</p></div></header>
                     <section class="ops-card">
                         <div class="ops-grid cols-3">
                             <label class="ops-field wide"><span>File Excel</span><input id="invoice-import-file" type="file" accept=".xlsx,.xls"></label>
-                            <label class="ops-field"><span>Jika Nomor Faktur Sudah Ada</span><select id="invoice-duplicate-mode"><option value="skip">Lewati</option><option value="overwrite">Timpa</option><option value="merge">Gabungkan</option></select></label>
                             <div class="ops-action-field"><button id="read-invoice-import" type="button" class="button button-primary"><i class="fa-solid fa-file-import"></i> Baca & Preview</button></div>
                         </div>
                         <div id="invoice-import-summary" class="ops-notice" hidden></div>
@@ -1293,7 +1294,7 @@
             </section>
             <section class="view-section" data-view-section="import-opname" hidden>
                 <div class="ops-page">
-                    <header class="module-header"><div><h2>Import Stock Opname</h2><p>Import hasil hitung fisik dari Template_Stock_Opname_KasirPro.xlsx, tinjau selisih, lalu konfirmasi adjustment.</p></div><a href="../data/templates/Template_Stock_Opname_KasirPro.xlsx" class="button button-secondary" download><i class="fa-solid fa-download"></i> Download Template</a></header>
+                    <header class="module-header"><div><h2>Import Hasil Stock Opname</h2><p>Unggah file hasil hitung fisik yang sebelumnya dibuat melalui Stock → Stock Opname → Export Stok Sistem, lalu tinjau selisih dan konfirmasi adjustment.</p></div><a href="../data/templates/Template_Stock_Opname_KasirPro.xlsx" class="button button-secondary" download="Template_Stock_Opname_KasirPro.xlsx"><i class="fa-solid fa-download"></i> Template Opname Kosong</a></header>
                     <section class="ops-card"><div class="ops-grid cols-3"><label class="ops-field wide"><span>File Excel</span><input id="opname-import-file" type="file" accept=".xlsx,.xls"></label><div class="ops-action-field"><button id="read-opname-import" type="button" class="button button-primary"><i class="fa-solid fa-file-import"></i> Baca & Preview</button></div></div><div id="opname-import-summary" class="ops-notice" hidden></div><div id="opname-import-preview" class="table-wrapper" hidden><table class="data-table"><thead><tr><th>Kode</th><th>Produk</th><th>Stok Sistem</th><th>Stok Fisik</th><th>Selisih</th><th>Nilai Selisih</th></tr></thead><tbody id="opname-import-preview-body"></tbody></table></div><div id="opname-import-actions" class="panel-actions" hidden><button id="confirm-opname-import" type="button" class="button button-primary"><i class="fa-solid fa-check"></i> Konfirmasi Adjustment</button></div></section>
                 </div>
             </section>
@@ -1657,7 +1658,6 @@
                             </button>
                         </div>
                     </header>
-
                     <div class="workbook-summary">
                         <article class="summary-card">
                             <span class="summary-icon"><i class="fa-solid fa-tags"></i></span>
@@ -1881,21 +1881,21 @@
                 </section>
             </div>
             <section class="view-section" data-view-section="stock" hidden>
-                <div class="ops-page"><header class="module-header"><div><h2>Stok Saat Ini</h2><p>Posisi stok aktif yang digunakan Management dan POS.</p></div><div class="module-header-actions"><button id="export-stock-opname" class="button button-secondary" type="button"><i class="fa-solid fa-file-export"></i> Export Opname</button><button id="refresh-stock" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button></div></header>
+                <div class="ops-page"><header class="module-header"><div><h2>Stok Saat Ini</h2><p>Posisi stok aktif yang digunakan Management dan POS.</p></div><div class="module-header-actions"><button id="refresh-stock" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button></div></header>
                 <div class="workbook-summary"><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-boxes-stacked"></i></span><div><span>Total Produk</span><strong id="stock-product-count">0</strong></div></article><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-cubes"></i></span><div><span>Total Stok</span><strong id="stock-unit-count">0</strong></div></article><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-triangle-exclamation"></i></span><div><span>Menipis/Habis</span><strong id="stock-alert-count">0</strong></div></article></div>
-                <section class="ops-card"><div class="preview-toolbar"><div class="preview-search"><i class="fa-solid fa-magnifying-glass"></i><input id="stock-search" type="search" placeholder="Cari kode atau nama produk..."></div></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Kode</th><th>Produk</th><th>Kategori</th><th>Stok</th><th>Min.</th><th>Harga Beli</th><th>Nilai Stok</th><th>Rak</th></tr></thead><tbody id="stock-table-body"></tbody></table></div></section></div>
+                <section class="ops-card"><div class="preview-toolbar stock-filter-toolbar"><div class="preview-search"><i class="fa-solid fa-magnifying-glass"></i><input id="stock-search" type="search" placeholder="Cari kode atau nama produk..." aria-label="Cari kode atau nama produk"></div><select id="stock-category-filter" aria-label="Filter kategori"><option value="">Semua Kategori</option></select><select id="stock-supplier-filter" aria-label="Filter supplier"><option value="">Semua Supplier</option></select><select id="stock-status-filter" aria-label="Filter status stok"><option value="">Semua Stok</option><option value="safe">Stok Aman</option><option value="low">Stok Menipis</option><option value="empty">Stok Habis</option></select><button id="stock-reset-filter" class="button button-secondary" type="button" hidden>Reset Filter</button></div><p id="stock-loading-status" class="stock-loading-status" role="status" aria-live="polite" hidden><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Memuat stok saat ini…</p><div class="table-wrapper"><table class="data-table"><thead><tr><th>Kode</th><th>Produk</th><th>Kategori</th><th>Stok</th><th>Min.</th><th>Harga Beli</th><th>Nilai Stok</th><th>Rak</th></tr></thead><tbody id="stock-table-body"></tbody></table></div><div class="panel-actions split stock-pagination"><div class="preview-meta" id="stock-page-info" aria-live="polite"></div><div class="pagination"><button id="stock-prev-page" type="button" class="button button-secondary"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Sebelumnya</button><button id="stock-next-page" type="button" class="button button-secondary">Berikutnya <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></div></div></section></div>
             </section>
             <section class="view-section" data-view-section="goods-in" hidden>
-                <div class="ops-page"><header class="module-header"><div><h2>Barang Masuk & Mutasi Stok</h2><p>Riwayat perubahan stok dari faktur pembelian, stock opname, dan penjualan POS.</p></div><button id="refresh-goods-in" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button></header><section class="ops-card"><div class="preview-toolbar"><div class="preview-search"><i class="fa-solid fa-magnifying-glass"></i><input id="movement-search" type="search" placeholder="Cari produk, referensi, atau jenis mutasi..."></div><select id="movement-type-filter"><option value="">Semua Mutasi</option><option value="purchase">Barang Masuk</option><option value="opname">Stock Opname</option><option value="sale">Penjualan</option><option value="reversal">Pembalikan</option></select></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Waktu</th><th>Jenis</th><th>Referensi</th><th>Kode</th><th>Produk</th><th>Perubahan</th><th>Stok Setelah</th><th>Keterangan</th></tr></thead><tbody id="movement-table-body"></tbody></table></div></section></div>
+                <div class="ops-page"><header class="module-header"><div><h2>Barang Masuk & Mutasi Stok</h2><p>Riwayat perubahan stok dari faktur pembelian, stok awal produk baru, stock opname, dan penjualan POS.</p></div><button id="refresh-goods-in" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button></header><section class="ops-card"><div class="preview-toolbar"><div class="preview-search"><i class="fa-solid fa-magnifying-glass"></i><input id="movement-search" type="search" placeholder="Cari produk, referensi, atau jenis mutasi..."></div><select id="movement-type-filter"><option value="">Semua Mutasi</option><option value="purchase">Barang Masuk</option><option value="opening">Stok Awal</option><option value="opname">Stock Opname</option><option value="sale">Penjualan</option><option value="reversal">Pembalikan</option></select></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Waktu</th><th>Jenis</th><th>Referensi</th><th>Kode</th><th>Produk</th><th>Perubahan</th><th>Stok Setelah</th><th>Keterangan</th></tr></thead><tbody id="movement-table-body"></tbody></table></div></section></div>
             </section>
             <section class="view-section" data-view-section="stock-opname" hidden>
-                <div class="ops-page"><header class="module-header"><div><h2>Stock Opname</h2><p>Export stok sistem, isi stok fisik di Excel, import kembali, lalu konfirmasi adjustment.</p></div><div class="module-header-actions"><button id="opname-export-button" class="button button-secondary" type="button"><i class="fa-solid fa-file-export"></i> Export Stok Sistem</button><button id="go-import-opname" class="button button-primary" type="button"><i class="fa-solid fa-file-import"></i> Import Hasil Opname</button></div></header><section class="ops-card"><div class="ops-notice"><strong>Alur:</strong> 1) Export stok sistem → 2) isi kolom Stok Fisik → 3) Import Hasil Opname → 4) periksa Selisih → 5) Konfirmasi Adjustment.</div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Tanggal</th><th>Referensi</th><th>Produk Disesuaikan</th><th>Total Selisih Qty</th><th>Nilai Selisih</th></tr></thead><tbody id="opname-history-body"></tbody></table></div></section></div>
+                <div class="ops-page"><header class="module-header"><div><h2>Stock Opname</h2><p>Halaman utama untuk memulai opname dari stok aktual dan melihat riwayat penyesuaian.</p></div><div class="module-header-actions"><button id="opname-export-button" class="button button-secondary" type="button"><i class="fa-solid fa-file-export"></i> Export Stok Sistem</button><button id="go-import-opname" class="button button-primary" type="button"><i class="fa-solid fa-file-import"></i> Import Hasil Opname</button></div></header><section class="ops-card"><div class="ops-notice"><strong>Alur:</strong> 1) Export stok sistem → 2) isi kolom Stok Fisik → 3) Import Hasil Opname → 4) periksa Selisih → 5) Konfirmasi Adjustment.</div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Tanggal</th><th>Referensi</th><th>Produk Disesuaikan</th><th>Total Selisih Qty</th><th>Nilai Selisih</th></tr></thead><tbody id="opname-history-body"></tbody></table></div></section></div>
             </section>
             <section class="view-section" data-view-section="purchase-invoices" hidden>
                 <div class="ops-page"><header class="module-header"><div><h2>Faktur Pembelian</h2><p>Faktur dikelola melalui template Excel. Stok bertambah hanya setelah faktur impor dikonfirmasi sebagai Barang Masuk.</p></div><div class="module-header-actions"><button id="go-import-invoice" class="button button-primary" type="button"><i class="fa-solid fa-file-import"></i> Import Excel</button></div></header>
                 <div class="workbook-summary"><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-file-invoice"></i></span><div><span>Total Faktur</span><strong id="invoice-count">0</strong></div></article><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-pen"></i></span><div><span>Draft</span><strong id="invoice-draft-count">0</strong></div></article><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-circle-check"></i></span><div><span>Terkonfirmasi</span><strong id="invoice-confirmed-count">0</strong></div></article><article class="summary-card"><span class="summary-icon"><i class="fa-solid fa-money-bill"></i></span><div><span>Total Nilai</span><strong id="invoice-value-total">Rp0</strong></div></article></div>
                 <section class="ops-card"><div class="preview-toolbar"><div class="preview-search"><i class="fa-solid fa-magnifying-glass"></i><input id="invoice-search" type="search" placeholder="Cari nomor faktur atau supplier..."></div><select id="invoice-status-filter"><option value="">Semua Status</option><option value="draft">Draft</option><option value="confirmed">Terkonfirmasi</option></select></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Nomor Faktur</th><th>Tanggal</th><th>Supplier</th><th>Item</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="invoice-table-body"></tbody></table></div></section></div>
-                <div id="invoice-editor-overlay" class="product-detail-overlay" hidden><section class="product-detail-panel ops-dialog-wide" role="dialog" aria-modal="true"><header class="product-detail-header"><div><span class="product-detail-label">Faktur Pembelian</span><h2 id="invoice-editor-title">Faktur Baru</h2><p>Draft dapat diubah sebelum dikonfirmasi.</p></div><button id="close-invoice-editor" class="product-detail-close" type="button"><i class="fa-solid fa-xmark"></i></button></header><div class="product-detail-body"><div class="ops-grid cols-3"><label class="ops-field"><span>Nomor Faktur</span><input id="invoice-number" type="text"></label><label class="ops-field"><span>Tanggal Faktur</span><input id="invoice-date" type="date"></label><label class="ops-field"><span>Supplier</span><select id="invoice-supplier"></select></label><label class="ops-field"><span>Jenis Pembayaran</span><select id="invoice-payment-type"><option>Cash</option><option>Tempo</option></select></label><label class="ops-field"><span>Jatuh Tempo</span><input id="invoice-due-date" type="date"></label><label class="ops-field"><span>PPN Global (%)</span><input id="invoice-tax" type="number" min="0" step="0.01" value="0"></label><label class="ops-field"><span>Diskon Faktur</span><input id="invoice-discount" type="number" min="0" step="1" value="0"></label><label class="ops-field"><span>Biaya Lain</span><input id="invoice-other-cost" type="number" min="0" step="1" value="0"></label><label class="ops-field wide"><span>Catatan</span><input id="invoice-notes" type="text"></label></div><hr class="ops-separator"><h3>Item Faktur</h3><div class="ops-grid cols-6 invoice-item-entry"><label class="ops-field wide"><span>Produk</span><select id="invoice-item-product"></select></label><label class="ops-field"><span>Qty</span><input id="invoice-item-qty" type="number" min="0" step="0.01" value="1"></label><label class="ops-field"><span>Harga Beli</span><input id="invoice-item-buy" type="number" min="0" value="0"></label><label class="ops-field"><span>Harga Jual</span><input id="invoice-item-sell" type="number" min="0" value="0"></label><label class="ops-field"><span>Diskon Item</span><input id="invoice-item-discount" type="number" min="0" value="0"></label><div class="ops-action-field"><button id="add-invoice-item" type="button" class="button button-secondary"><i class="fa-solid fa-plus"></i> Tambah</button></div></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Produk</th><th>Qty</th><th>Harga Beli</th><th>Diskon</th><th>Subtotal</th><th></th></tr></thead><tbody id="invoice-editor-items"></tbody></table></div><div class="ops-total-box"><span>Total Faktur</span><strong id="invoice-editor-total">Rp0</strong></div></div><footer class="product-detail-footer"><button id="save-invoice-draft" class="button button-secondary" type="button"><i class="fa-solid fa-floppy-disk"></i> Simpan Draft</button><button id="confirm-invoice" class="button button-primary" type="button"><i class="fa-solid fa-box-open"></i> Konfirmasi Barang Masuk</button></footer></section></div>
+                <div id="invoice-editor-overlay" class="product-detail-overlay" hidden><section class="product-detail-panel ops-dialog-wide" role="dialog" aria-modal="true"><header class="product-detail-header"><div><span class="product-detail-label">Faktur Pembelian</span><h2 id="invoice-editor-title">Faktur Baru</h2><p>Draft dapat diubah sebelum dikonfirmasi.</p></div><button id="close-invoice-editor" class="product-detail-close" type="button"><i class="fa-solid fa-xmark"></i></button></header><div class="product-detail-body"><div class="ops-grid cols-3"><label class="ops-field"><span>Nomor Faktur</span><input id="invoice-number" type="text"></label><label class="ops-field"><span>Tanggal Faktur</span><input id="invoice-date" type="date"></label><label class="ops-field"><span>Supplier</span><select id="invoice-supplier"></select></label><label class="ops-field"><span>Jenis Pembayaran</span><select id="invoice-payment-type"><option>Cash</option><option>Tempo</option></select></label><label class="ops-field"><span>Jatuh Tempo</span><input id="invoice-due-date" type="date"></label><label class="ops-field"><span>PPN Global (%)</span><input id="invoice-tax" type="number" min="0" step="0.01" value="0"></label><label class="ops-field"><span>Metode Diskon Faktur</span><select id="invoice-discount-method"><option value="nominal">Rupiah</option><option value="percentage">Persen</option></select></label><label class="ops-field"><span>Diskon Faktur</span><input id="invoice-discount" type="number" min="0" step="0.01" value="0"></label><label class="ops-field"><span>Biaya Lain</span><input id="invoice-other-cost" type="number" min="0" step="1" value="0"></label><label class="ops-field wide"><span>Catatan</span><input id="invoice-notes" type="text"></label></div><hr class="ops-separator"><h3>Item Faktur</h3><div class="ops-grid cols-6 invoice-item-entry"><label class="ops-field wide"><span>Produk</span><select id="invoice-item-product"></select></label><label class="ops-field"><span>Qty</span><input id="invoice-item-qty" type="number" min="0" step="0.01" value="1"></label><label class="ops-field"><span>Harga Beli</span><input id="invoice-item-buy" type="number" min="0" value="0"></label><label class="ops-field"><span>Harga Jual</span><input id="invoice-item-sell" type="number" min="0" value="0"></label><label class="ops-field"><span>Metode Diskon Item</span><select id="invoice-item-discount-method"><option value="nominal">Rupiah</option><option value="percentage">Persen</option></select></label><label class="ops-field"><span>Diskon Item</span><input id="invoice-item-discount" type="number" min="0" step="0.01" value="0"></label><div class="ops-action-field"><button id="add-invoice-item" type="button" class="button button-secondary"><i class="fa-solid fa-plus"></i> Tambah</button></div></div><div class="table-wrapper"><table class="data-table"><thead><tr><th>Produk</th><th>Qty</th><th>Harga Beli</th><th>Diskon</th><th>Subtotal</th><th></th></tr></thead><tbody id="invoice-editor-items"></tbody></table></div><div class="ops-total-box"><span>Total Faktur</span><strong id="invoice-editor-total">Rp0</strong></div></div><footer class="product-detail-footer"><button id="save-invoice-draft" class="button button-secondary" type="button"><i class="fa-solid fa-floppy-disk"></i> Simpan Draft</button><button id="confirm-invoice" class="button button-primary" type="button"><i class="fa-solid fa-box-open"></i> Konfirmasi Barang Masuk</button></footer></section></div>
             </section>
             <section class="view-section" data-view-section="sales" hidden>
                 <div class="ops-page sales-management-page">
@@ -1905,7 +1905,6 @@
                             <p>Riwayat seluruh transaksi dari POS. Admin dapat melihat detail, mencetak ulang, dan melakukan VOID dengan pengembalian stok.</p>
                         </div>
                         <div class="module-header-actions">
-                            <button id="sales-export-csv" class="button button-secondary" type="button"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
                             <a href="../pos/index.html" class="button button-secondary topbar-pos-link"><i class="fa-solid fa-cash-register"></i> Buka POS</a>
                             <button id="sales-refresh" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button>
                         </div>
@@ -1952,7 +1951,6 @@
                             <p>Analisis penjualan, produk terjual, stok, barang masuk, faktur pembelian, margin, dan kinerja kasir.</p>
                         </div>
                         <div class="module-header-actions">
-                            <button id="report-export-csv" class="button button-secondary" type="button"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
                             <button id="report-print" class="button button-secondary" type="button"><i class="fa-solid fa-print"></i> Cetak</button>
                             <button id="report-refresh" class="button button-primary" type="button"><i class="fa-solid fa-rotate"></i> Muat Ulang</button>
                         </div>
@@ -2030,6 +2028,10 @@
                             </button>
                         </div>
                     </header>
+
+                    <div class="ops-notice">
+                        Daftar ini membaca profil akun dari koleksi Firestore <strong>users</strong>. Firebase Authentication tidak dapat menampilkan seluruh akun melalui aplikasi browser; setiap akun Authentication harus memiliki profil pengguna yang sesuai.
+                    </div>
 
                     <div class="workbook-summary">
                         <article class="summary-card">
@@ -2186,6 +2188,13 @@
                     </header>
 
                     <div id="settings-save-notice" class="settings-notice" hidden></div>
+                    <aside class="settings-readonly-info" role="note">
+                        <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+                        <div>
+                            <strong>Pengaturan dapat diubah langsung</strong>
+                            <p>Semua perubahan disimpan sekaligus ketika tombol Simpan Perubahan ditekan, sehingga tidak ada write saat Anda mengetik.</p>
+                        </div>
+                    </aside>
 
                     <form id="store-settings-form" class="settings-form" autocomplete="off">
                         <section class="import-panel settings-section">
@@ -2225,9 +2234,10 @@
                                     <input id="setting-store-phone" type="text" inputmode="tel" placeholder="Nomor telepon">
                                 </label>
 
-                                <label class="settings-field">
+                                <label class="settings-field settings-field-readonly">
                                     <span>Email</span>
-                                    <input id="setting-store-email" type="email" placeholder="Email toko">
+                                    <input id="setting-store-email" type="email" placeholder="Email toko" readonly>
+                                    <small><i class="fa-solid fa-lock"></i> Ditetapkan oleh sistem.</small>
                                 </label>
 
                                 <label class="settings-field">
@@ -2235,10 +2245,10 @@
                                     <input id="setting-store-npwp" type="text" placeholder="NPWP">
                                 </label>
 
-                                <label class="settings-field">
+                                <label class="settings-field settings-field-readonly">
                                     <span>Logo</span>
-                                    <input id="setting-store-logo" type="text" placeholder="logo.png">
-                                    <small>Nama file di folder assets atau URL/path logo.</small>
+                                    <input id="setting-store-logo" type="text" placeholder="logo.png" readonly>
+                                    <small><i class="fa-solid fa-lock"></i> Ditetapkan oleh sistem.</small>
                                 </label>
                             </div>
                         </section>
@@ -2246,8 +2256,8 @@
                         <section class="import-panel settings-section">
                             <div class="panel-header">
                                 <div>
-                                    <h3>Nomor Transaksi & Faktur</h3>
-                                    <p>Prefix dan pola nomor yang akan digunakan sistem.</p>
+                                    <h3>Nomor Transaksi & Sistem</h3>
+                                    <p>Prefix transaksi dan informasi sistem yang digunakan aplikasi.</p>
                                 </div>
                             </div>
 
@@ -2257,29 +2267,16 @@
                                     <input id="setting-transaction-prefix" type="text" placeholder="TRX">
                                 </label>
 
-                                <label class="settings-field">
-                                    <span>Format Nomor Transaksi</span>
-                                    <input id="setting-transaction-format" type="text" placeholder="Contoh: {PREFIX}-{YYYYMMDD}-{0001}">
-                                </label>
-
-                                <label class="settings-field">
-                                    <span>Prefix Faktur</span>
-                                    <input id="setting-invoice-prefix" type="text" placeholder="INV">
-                                </label>
-
-                                <label class="settings-field">
-                                    <span>Format Nomor Faktur</span>
-                                    <input id="setting-invoice-format" type="text" placeholder="Contoh: {PREFIX}-{YYYYMMDD}-{0001}">
-                                </label>
-
-                                <label class="settings-field">
+                                <label class="settings-field settings-field-readonly">
                                     <span>Mata Uang</span>
-                                    <input id="setting-currency" type="text" placeholder="IDR">
+                                    <input id="setting-currency" type="text" value="IDR (Rupiah)" readonly>
+                                    <small><i class="fa-solid fa-lock"></i> Ditetapkan oleh sistem.</small>
                                 </label>
 
-                                <label class="settings-field">
+                                <label class="settings-field settings-field-readonly">
                                     <span>Zona Waktu</span>
-                                    <input id="setting-timezone" type="text" placeholder="Asia/Jakarta">
+                                    <input id="setting-timezone" type="text" value="Asia/Jakarta" readonly>
+                                    <small><i class="fa-solid fa-lock"></i> Ditetapkan oleh sistem.</small>
                                 </label>
                             </div>
                         </section>
@@ -2287,36 +2284,20 @@
                         <section class="import-panel settings-section">
                             <div class="panel-header">
                                 <div>
-                                    <h3>Pajak, Printer & Kertas</h3>
-                                    <p>Konfigurasi dasar untuk perhitungan dan pencetakan.</p>
+                                    <h3>Ukuran Struk</h3>
+                                    <p>Lebar dan tata letak cetak menyesuaikan pilihan secara otomatis.</p>
                                 </div>
                             </div>
 
                             <div class="settings-grid">
                                 <label class="settings-field">
-                                    <span>Pajak Default (%)</span>
-                                    <input id="setting-default-tax" type="number" min="0" step="0.01" placeholder="0">
-                                </label>
-
-                                <label class="settings-field">
                                     <span>Ukuran Struk</span>
-                                    <select id="setting-receipt-size">
-                                        <option value="">Belum Diatur</option>
-                                        <option value="58mm">58mm</option>
-                                        <option value="80mm">80mm</option>
+                                    <select id="setting-receipt-size" required>
+                                        <option value="58mm">58 mm</option>
+                                        <option value="80mm">80 mm</option>
                                         <option value="A4">A4</option>
                                     </select>
-                                </label>
-
-                                <label class="settings-field">
-                                    <span>Printer Default</span>
-                                    <input id="setting-default-printer" type="text" placeholder="Nama printer">
-                                </label>
-
-                                <label class="settings-field">
-                                    <span>Lebar Kertas</span>
-                                    <input id="setting-paper-width" type="text" placeholder="80">
-                                    <small>Contoh: 58 atau 80.</small>
+                                    <small>58 mm dan 80 mm menggunakan format struk; A4 menggunakan format nota penuh.</small>
                                 </label>
                             </div>
                         </section>
@@ -2347,14 +2328,6 @@
                                 </label>
 
                                 <label class="settings-toggle">
-                                    <input id="setting-show-tax" type="checkbox">
-                                    <span>
-                                        <strong>Tampilkan Pajak</strong>
-                                        <small>Rincian pajak ditampilkan pada struk.</small>
-                                    </span>
-                                </label>
-
-                                <label class="settings-toggle">
                                     <input id="setting-show-discount" type="checkbox">
                                     <span>
                                         <strong>Tampilkan Diskon</strong>
@@ -2378,6 +2351,9 @@
 
                         <div class="settings-bottom-actions">
                             <span id="settings-data-source">Data belum dimuat.</span>
+                            <button type="submit" class="button button-primary">
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan
+                            </button>
                         </div>
                     </form>
                 </div>

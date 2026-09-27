@@ -21,6 +21,13 @@ const $ = (id) => document.getElementById(id);
 const text = (value) => String(value ?? "").trim();
 const norm = (value) => text(value).toLowerCase();
 const num = (value) => Number(String(value ?? 0).replace(/[^0-9.-]/g, "")) || 0;
+function physicalQuantity(value) {
+    if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? value : null;
+    const raw = text(value);
+    if (!/^\d+$/.test(raw)) return null;
+    const parsed = Number(raw);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+}
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[char]));
@@ -89,7 +96,6 @@ function exportStockOpnameV2() {
     }
 
     const master = getMaster();
-    const movements = getMovements();
     const rows = products(master).map((product) => ({
         "Kode Produk": text(product?.["Kode Produk"]),
         "Nama Produk": text(product?.["Nama Produk"]),
@@ -122,7 +128,6 @@ async function previewOpnameImportV2() {
     const workbook = await readWorkbook($("opname-import-file")?.files?.[0]);
     const rows = sheetRows(workbook, ["stock_opname", "stock opname"]);
     const master = getMaster();
-    const movements = getMovements();
     const preview = [];
     const issues = [];
 
@@ -145,9 +150,9 @@ async function previewOpnameImportV2() {
             return;
         }
 
-        const physical = num(physicalRaw);
-        if (physical < 0) {
-            issues.push(`Baris ${index + 2}: Stok Fisik ${code} tidak boleh negatif.`);
+        const physical = physicalQuantity(physicalRaw);
+        if (physical === null) {
+            issues.push(`Baris ${index + 2}: Stok Fisik ${code} harus bilangan bulat tidak negatif (tanpa pemisah ribuan).`);
             return;
         }
 
@@ -228,6 +233,7 @@ async function confirmOpnameImportV2() {
     }
 
     const changed = opnamePreviewV2.filter((item) => item.diff !== 0);
+    if (changed.length > 200) return alert("Terlalu banyak perubahan stok dalam satu transaksi. Bagi hasil opname menjadi maksimal 200 produk per file.");
     if (!changed.length) {
         opnamePreviewV2 = [];
         opnameIssuesV2 = [];
@@ -287,7 +293,7 @@ async function confirmOpnameImportV2() {
 }
 
 async function captureOpnameActions(event) {
-    const exportButton = event.target.closest("#export-stock-opname, #opname-export-button");
+    const exportButton = event.target.closest("#opname-export-button");
     const readButton = event.target.closest("#read-opname-import");
     const confirmButton = event.target.closest("#confirm-opname-import");
 
@@ -322,6 +328,12 @@ async function captureOpnameActions(event) {
 }
 
 document.addEventListener("click", captureOpnameActions, true);
+document.getElementById("opname-import-file")?.addEventListener("change", () => {
+    opnamePreviewV2 = [];
+    opnameIssuesV2 = [];
+    if ($("opname-import-preview")) $("opname-import-preview").hidden = true;
+    if ($("opname-import-actions")) $("opname-import-actions").hidden = true;
+});
 
 window.KasirProStockOpnameV2 = Object.freeze({
     exportStockOpnameV2,

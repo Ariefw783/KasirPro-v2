@@ -199,3 +199,4 @@ if (document.readyState === "loading") {
 } else {
     install();
 }
+
